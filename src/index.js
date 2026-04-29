@@ -83,13 +83,17 @@ async function startSystem() {
         const UMA_HORA = 60 * 60 * 1000;
         console.log("⏰ [SYSTEM] Loop de busca automática ativado (1h)");
         
-        // roda uma vez agora no início
-        runScrapersAndNotify();
-        
-        // e depois repete a cada hora
-        setInterval(() => {
+        // espera 30 segundos antes de começar a busca automática
+        // isso dá tempo para você conectar o whatsapp e o servidor estabilizar no render
+        setTimeout(() => {
+            console.log("⏰ [SYSTEM] Iniciando primeira busca de vagas...");
             runScrapersAndNotify();
-        }, UMA_HORA);
+            
+            // e depois repete a cada hora
+            setInterval(() => {
+                runScrapersAndNotify();
+            }, UMA_HORA);
+        }, 30000); // 30 segundos de delay
     });
 }
 
