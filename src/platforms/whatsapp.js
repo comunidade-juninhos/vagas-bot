@@ -13,7 +13,16 @@ const SessionSchema = new mongoose.Schema({
 });
 const SessionModel = mongoose.models.Session || mongoose.model('Session', SessionSchema);
 
-export let currentPairingCode = "Aguardando..."; // variável global para guardar o código
+// esquema para trava de instância (evita dois bots ao mesmo tempo)
+const LockSchema = new mongoose.Schema({
+    id: { type: String, default: 'instance_lock' },
+    instanceId: String,
+    lastSeen: Date
+});
+const LockModel = mongoose.models.Lock || mongoose.model('Lock', LockSchema);
+
+const myInstanceId = Math.random().toString(36).substring(7);
+export let currentPairingCode = "Aguardando..."; 
 export let currentQRCode = null; // guarda o link do qr code
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout});
@@ -23,7 +32,36 @@ let socketInstance = null; // guarda a conexão ativa do whatsapp
 
 // função para ligar o whatsapp via baileys
 export async function connectWhatsApp() {
-    // 1. tenta restaurar a sessão do banco de dados se a pasta local sumiu (comum no render)
+    // 0. TRAVA DE SEGURANÇA: garante que só uma instância do Render conecte por vez
+    try {
+        const now = new Date();
+        const lock = await LockModel.findOne({ id: 'instance_lock' });
+        
+        // se houver um lock de menos de 45 segundos atrás de OUTRA instância, a gente espera
+        if (lock && lock.instanceId !== myInstanceId && (now - lock.lastSeen) < 45000) {
+            console.log("⏳ [SYSTEM] Outra instância está ativa. Aguardando 30s para não bugar o WhatsApp...");
+            currentPairingCode = "AGUARDANDO OUTRO BOT...";
+            await delay(30000);
+            return connectWhatsApp();
+        }
+
+        // atualiza o lock a cada 20 segundos
+        await LockModel.findOneAndUpdate(
+            { id: 'instance_lock' },
+            { instanceId: myInstanceId, lastSeen: now },
+            { upsert: true }
+        );
+        setInterval(async () => {
+            await LockModel.findOneAndUpdate(
+                { id: 'instance_lock' },
+                { lastSeen: new Date() }
+            );
+        }, 20000);
+    } catch (e) {
+        console.error("⚠️ [LOCK] Falha ao gerenciar trava de instância:", e.message);
+    }
+
+    // 1. tenta restaurar a sessão do banco de dados
     if (!fs.existsSync('./auth_info/creds.json')) {
         try {
             const savedSession = await SessionModel.findOne({ id: 'whatsapp_session' });
@@ -33,67 +71,65 @@ export async function connectWhatsApp() {
                 fs.writeFileSync('./auth_info/creds.json', savedSession.data);
             }
         } catch (err) {
-            console.error("⚠️ [WHATSAPP] Falha ao restaurar sessão do banco:", err.message);
+            console.error("⚠️ [WHATSAPP] Falha ao restaurar sessão:", err.message);
         }
     }
 
-    // carrega as credenciais da pasta auth_info
     const { state, saveCreds } = await useMultiFileAuthState('auth_info');
     const { version } = await fetchLatestBaileysVersion();
 
-    // configura o socket do whatsapp
+    // configurações de rede ultra-resistentes
     const sock = makeWASocket({
         version,
         logger: pino({ level: "error" }),
-        printQRInTerminal: process.env.AUTH_METHOD === 'qr',
+        printQRInTerminal: false,
         auth: state,
-        // usando Ubuntu/Chrome para maior estabilidade no pareamento
         browser: ["Ubuntu", "Chrome", "20.0.0.0"],
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: 60000,
+        keepAliveIntervalMs: 30000,
+        retryRequestDelayMs: 5000,
+        generateHighQualityLinkPreview: true
     });
 
     socketInstance = sock;
 
-    // lógica para login via código de pareamento
+    // lógica para login via código
     if (process.env.AUTH_METHOD === 'code' && !sock.authState.creds.registered) {
-        let phoneNumber = process.env.MOBILE_NUMBER;
-        if (!phoneNumber) {
-            currentPairingCode = "FALTA NÚMERO NO .ENV";
-            console.log("⚠️ [WHATSAPP] Erro: MOBILE_NUMBER não configurado no Render!");
-            return sock;
-        }
-
-        phoneNumber = phoneNumber.replace(/[^0-9]/g, '');
+        const phoneNumber = process.env.MOBILE_NUMBER?.replace(/[^0-9]/g, '');
         if (phoneNumber) {
             console.log(`🔌 [WHATSAPP] Solicitando código para ${phoneNumber}...`);
             currentPairingCode = "GERANDO...";
-            
             try {
+                // espera o socket estar realmente pronto
+                await delay(5000);
                 const code = await sock.requestPairingCode(phoneNumber);
-                currentPairingCode = code; // salva o código para a página web
+                currentPairingCode = code;
                 console.log(`\n🔥 Pairing Code: ${code}\n`);
             } catch (err) {
                 console.error("❌ [WHATSAPP] Erro ao pedir código:", err.message);
-                currentPairingCode = "ERRO AO GERAR";
+                currentPairingCode = "ERRO - TENTE RESET";
             }
         }
     }
 
-
-    // monitora o estado da conexão
     sock.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect, qr } = update;
-
-        // se o whatsapp mandar um QR code, a gente salva ele
         if (qr) {
             currentQRCode = `https://chart.googleapis.com/chart?cht=qr&chl=${encodeURIComponent(qr)}&chs=300x300`;
             currentPairingCode = "USE O QR CODE ABAIXO";
         }
-
         if (connection === 'close') {
-            const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-            if (shouldReconnect) connectWhatsApp();
+            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+            console.log(`🔌 [WHATSAPP] Conexão fechada (${statusCode}). Reconectando: ${shouldReconnect}`);
+            if (shouldReconnect) {
+                // evita loops infinitos imediatos
+                await delay(5000);
+                connectWhatsApp();
+            }
         } else if (connection === "open") {
-            currentQRCode = null; // limpa o QR após conectar
+            currentQRCode = null;
             console.log("✅ [WHATSAPP CONNECTED]");
         }
     });
@@ -123,8 +159,14 @@ export async function sendJob(job, jid) {
     if (!socketInstance) return console.error("❌ socket não inicializado");
     try {
         const message = await formatJobMessage(job);
-        await socketInstance.sendMessage(jid, { text: message });
-        console.log(`✅ [success] enviada para: ${jid}`);
+        
+        // verifica se o socket está aberto antes de tentar enviar (evita erro de 'attrs')
+        if (socketInstance.ws?.readyState === 1) {
+            await socketInstance.sendMessage(jid, { text: message });
+            console.log(`✅ [success] enviada para: ${jid}`);
+        } else {
+            console.log("⏳ [WHATSAPP] Socket fechado. Mensagem ignorada (será enviada no próximo loop)");
+        }
     } catch (error) {
         console.error(`❌ [error] falha ao enviar: ${error.message}`);
     }
