@@ -14,6 +14,10 @@ async function startSystem() {
     // Initialize connections
     await connectWhatsApp();
     const discordClient = await connectDiscord();
+    
+    // Rota de Keep-Alive para o Render não dormir
+    app.get('/ping', (req, res) => res.send('pong'));
+
 
     app.post('/webhook/nova-vaga', async (req, res) => {
         const job = req.body;
