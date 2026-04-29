@@ -29,9 +29,11 @@ const rl = readline.createInterface({ input: process.stdin, output: process.stdo
 const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
 let socketInstance = null; // guarda a conexão ativa do whatsapp
+let isReady = false; // sinaliza se o bot está pronto para enviar mensagens
 
 // função para ligar o whatsapp via baileys
 export async function connectWhatsApp() {
+    isReady = false;
     // 0. TRAVA DE SEGURANÇA: garante que só uma instância do Render conecte por vez
     try {
         const now = new Date();
@@ -39,18 +41,19 @@ export async function connectWhatsApp() {
         
         // se houver um lock de menos de 45 segundos atrás de OUTRA instância, a gente espera
         if (lock && lock.instanceId !== myInstanceId && (now - lock.lastSeen) < 45000) {
-            console.log("⏳ [SYSTEM] Outra instância está ativa. Aguardando 30s para não bugar o WhatsApp...");
+            console.log("⏳ [SYSTEM] Outra instância está ativa. Aguardando 30s...");
             currentPairingCode = "AGUARDANDO OUTRO BOT...";
             await delay(30000);
             return connectWhatsApp();
         }
 
-        // atualiza o lock a cada 20 segundos
         await LockModel.findOneAndUpdate(
             { id: 'instance_lock' },
             { instanceId: myInstanceId, lastSeen: now },
             { upsert: true }
         );
+
+        // atualiza o lock a cada 20 segundos para manter a posse
         setInterval(async () => {
             await LockModel.findOneAndUpdate(
                 { id: 'instance_lock' },
@@ -78,7 +81,6 @@ export async function connectWhatsApp() {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info');
     const { version } = await fetchLatestBaileysVersion();
 
-    // configurações de rede ultra-resistentes
     const sock = makeWASocket({
         version,
         logger: pino({ level: "error" }),
@@ -88,8 +90,6 @@ export async function connectWhatsApp() {
         connectTimeoutMs: 60000,
         defaultQueryTimeoutMs: 60000,
         keepAliveIntervalMs: 30000,
-        retryRequestDelayMs: 5000,
-        generateHighQualityLinkPreview: true
     });
 
     socketInstance = sock;
@@ -101,8 +101,7 @@ export async function connectWhatsApp() {
             console.log(`🔌 [WHATSAPP] Solicitando código para ${phoneNumber}...`);
             currentPairingCode = "GERANDO...";
             try {
-                // espera o socket estar realmente pronto
-                await delay(5000);
+                await delay(10000); // espera extra para estabilizar
                 const code = await sock.requestPairingCode(phoneNumber);
                 currentPairingCode = code;
                 console.log(`\n🔥 Pairing Code: ${code}\n`);
@@ -115,22 +114,33 @@ export async function connectWhatsApp() {
 
     sock.ev.on("connection.update", async (update) => {
         const { connection, lastDisconnect, qr } = update;
+        
         if (qr) {
             currentQRCode = `https://chart.googleapis.com/chart?cht=qr&chl=${encodeURIComponent(qr)}&chs=300x300`;
             currentPairingCode = "USE O QR CODE ABAIXO";
         }
+
         if (connection === 'close') {
+            isReady = false;
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-            console.log(`🔌 [WHATSAPP] Conexão fechada (${statusCode}). Reconectando: ${shouldReconnect}`);
+            
+            // SE A SESSÃO BUGAR (ERRO 401 OU 428 PERSISTENTE), LIMPAMOS E PEDIMOS NOVO LOGIN
+            if (statusCode === 401 || statusCode === 411) {
+                console.log("🚨 [WHATSAPP] Sessão corrompida. Limpando para novo pareamento...");
+                if (fs.existsSync('./auth_info')) fs.rmSync('./auth_info', { recursive: true, force: true });
+                await SessionModel.deleteOne({ id: 'whatsapp_session' });
+            }
+
+            console.log(`🔌 [WHATSAPP] Conexão fechada (${statusCode}). Reconectando...`);
             if (shouldReconnect) {
-                // evita loops infinitos imediatos
-                await delay(5000);
+                await delay(10000);
                 connectWhatsApp();
             }
         } else if (connection === "open") {
+            isReady = true;
             currentQRCode = null;
-            console.log("✅ [WHATSAPP CONNECTED]");
+            console.log("✅ [WHATSAPP CONNECTED AND READY]");
         }
     });
 
@@ -163,13 +173,13 @@ export async function sendJob(job, jid) {
     try {
         const message = await formatJobMessage(job);
         
-        // verifica se o socket está aberto antes de tentar enviar (evita erro de 'attrs')
-        if (socketInstance.ws?.readyState === 1) {
+        // verifica se o bot está 100% pronto (evita erro de 'attrs')
+        if (isReady) {
             await socketInstance.sendMessage(jid, { text: message });
             console.log(`✅ [success] enviada para: ${jid}`);
             return true;
         } else {
-            console.log("⏳ [WHATSAPP] Socket fechado. Mensagem ignorada (será enviada no próximo loop)");
+            console.log("⏳ [WHATSAPP] Bot ainda não está pronto. Mensagem ignorada (será enviada no próximo loop)");
             return false;
         }
     } catch (error) {
