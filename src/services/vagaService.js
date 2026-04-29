@@ -3,7 +3,8 @@ import {
   createVagaIfNotExists,
   listVagas,
   listRecentVagas,
-} from "#root/repository/vagaRepository.js";
+  updateVagaStatus as updateVagaRepo
+} from "../repository/vagaRepository.js";
 
 // =========================
 // Cache simples em memória
@@ -107,4 +108,8 @@ export async function getRecentVagas(limit) {
   setCache(key, result);
 
   return result;
+}
+
+export async function updateVagaStatus(id, data) {
+  return updateVagaRepo(id, data);
 }

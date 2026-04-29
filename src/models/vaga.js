@@ -14,6 +14,8 @@ const VagaSchema = new mongoose.Schema({
     stack: [String], // lista de tecnologias
     originalLanguage: { type: String, default: 'en' }, // idioma original para as bandeiras
     contentHash: { type: String, unique: true }, // hash para evitar duplicidade de conteúdo
+    sent_whatsapp: { type: Boolean, default: false }, // se já foi enviada para o whatsapp
+    sent_discord: { type: Boolean, default: false }, // se já foi enviada para o discord
     scrapedAt: { type: Date, default: Date.now }, // data de quando foi capturada
     publishedAt: Date, // data de quando foi publicada na origem
     createdAt: { type: Date, default: Date.now } // data de criação no nosso banco

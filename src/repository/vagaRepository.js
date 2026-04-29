@@ -108,6 +108,10 @@ export async function createVaga(data) {
   return VagaModel.create(data);
 }
 
+export async function updateVagaStatus(id, updateData) {
+  return VagaModel.findByIdAndUpdate(id, { $set: updateData }, { new: true });
+}
+
 export async function findVagaById(id) {
   if (!mongoose.Types.ObjectId.isValid(id)) return null;
 

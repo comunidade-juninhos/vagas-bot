@@ -92,9 +92,10 @@ export async function sendJobDiscord(client, job, channelId) {
         // envia tudo para o canal
         await channel.send({ embeds: [embed], components: [row] });
         console.log(`✅ [discord] vaga enviada: ${job.title}`);
-
+        return true;
     } catch (error) {
         console.error("❌ [discord] erro ao enviar mensagem:", error.message);
+        return false;
     }
 }
 

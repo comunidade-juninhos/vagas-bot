@@ -3,7 +3,7 @@ import { connectWhatsApp, sendJob, currentPairingCode, currentQRCode } from './p
 import { connectDiscord, sendJobDiscord } from './platforms/discord.js';
 import { config } from './config/index.js';
 import { connectDB } from './config/database.js';
-import { createVaga } from './services/vagaService.js';
+import { createVaga, updateVagaStatus } from './services/vagaService.js';
 import { runScrapersAndNotify } from './services/scraper.js';
 
 const app = express();
@@ -95,27 +95,40 @@ async function startSystem() {
         console.log(`📩 Recebido: ${jobData.title}`);
 
         try {
-            // tenta salvar no banco (o service já faz a deduplicação via hash/url)
+            // tenta salvar ou recuperar a vaga existente
             const result = await createVaga(jobData);
+            const vaga = result.vaga; // a vaga que está no banco
 
-            // se a vaga já existia no banco, o 'result.created' será false
             if (!result.created) {
-                console.log(`⏭️ [SKIP] Vaga já enviada anteriormente: ${jobData.title}`);
-                return res.status(200).send("Already exists");
+                // se a vaga já existia, mas já foi enviada para os dois canais, ignora
+                if (vaga.sent_whatsapp && vaga.sent_discord) {
+                    console.log(`⏭️ [SKIP] Vaga já processada completamente: ${jobData.title}`);
+                    return res.status(200).send("Already processed");
+                }
+                console.log(`⏳ [RETRY] Vaga pendente de envio detectada: ${jobData.title}`);
+            } else {
+                console.log(`🆕 [NEW] Vaga inédita detectada!`);
             }
 
-            console.log(`🆕 [NEW] Vaga inédita detectada! Enviando para as redes...`);
-
-            // tenta enviar a vaga para o grupo de whatsapp
-            await sendJob(jobData, config.whatsapp.groupId);
-
-            // se o discord estiver logado, envia para o canal configurado
-            if (discordClient && config.discord.channelId) {
-                await sendJobDiscord(discordClient, jobData, config.discord.channelId);
+            // 1. tenta enviar para o whatsapp se ainda não foi
+            if (!vaga.sent_whatsapp) {
+                const success = await sendJob(jobData, config.whatsapp.groupId);
+                if (success) {
+                    await updateVagaStatus(vaga._id, { sent_whatsapp: true });
+                }
             }
+
+            // 2. tenta enviar para o discord se ainda não foi
+            if (!vaga.sent_discord && discordClient && config.discord.channelId) {
+                const success = await sendJobDiscord(discordClient, jobData, config.discord.channelId);
+                if (success) {
+                    await updateVagaStatus(vaga._id, { sent_discord: true });
+                }
+            }
+
             res.status(200).send("OK");
         } catch (err) {
-            console.error("❌ [WEBHOOK] Error processing job:", err.message);
+            console.error("❌ [WEBHOOK] Erro ao processar vaga:", err.message);
             res.status(500).send("Error");
         }
     });

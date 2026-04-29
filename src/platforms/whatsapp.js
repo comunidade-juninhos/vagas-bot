@@ -156,7 +156,10 @@ export async function connectWhatsApp() {
 
 // função que envia a mensagem formatada
 export async function sendJob(job, jid) {
-    if (!socketInstance) return console.error("❌ socket não inicializado");
+    if (!socketInstance) {
+        console.error("❌ socket não inicializado");
+        return false;
+    }
     try {
         const message = await formatJobMessage(job);
         
@@ -164,11 +167,14 @@ export async function sendJob(job, jid) {
         if (socketInstance.ws?.readyState === 1) {
             await socketInstance.sendMessage(jid, { text: message });
             console.log(`✅ [success] enviada para: ${jid}`);
+            return true;
         } else {
             console.log("⏳ [WHATSAPP] Socket fechado. Mensagem ignorada (será enviada no próximo loop)");
+            return false;
         }
     } catch (error) {
         console.error(`❌ [error] falha ao enviar: ${error.message}`);
+        return false;
     }
 }
 
