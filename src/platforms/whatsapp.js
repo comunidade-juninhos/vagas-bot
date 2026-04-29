@@ -14,6 +14,7 @@ const SessionSchema = new mongoose.Schema({
 const SessionModel = mongoose.models.Session || mongoose.model('Session', SessionSchema);
 
 export let currentPairingCode = "Aguardando..."; // variável global para guardar o código
+export let currentQRCode = null; // guarda o link do qr code
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout});
 const question = (text) => new Promise((resolve) => rl.question(text, resolve));
@@ -80,14 +81,23 @@ export async function connectWhatsApp() {
 
     // monitora o estado da conexão
     sock.ev.on("connection.update", async (update) => {
-        const { connection, lastDisconnect } = update;
+        const { connection, lastDisconnect, qr } = update;
+
+        // se o whatsapp mandar um QR code, a gente salva ele
+        if (qr) {
+            currentQRCode = `https://chart.googleapis.com/chart?cht=qr&chl=${encodeURIComponent(qr)}&chs=300x300`;
+            currentPairingCode = "USE O QR CODE ABAIXO";
+        }
+
         if (connection === 'close') {
             const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
             if (shouldReconnect) connectWhatsApp();
         } else if (connection === "open") {
+            currentQRCode = null; // limpa o QR após conectar
             console.log("✅ [WHATSAPP CONNECTED]");
         }
     });
+
 
     // salva as credenciais localmente E no banco de dados para backup
     sock.ev.on("creds.update", async () => {

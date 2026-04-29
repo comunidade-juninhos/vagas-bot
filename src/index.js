@@ -1,5 +1,5 @@
 import express from 'express';
-import { connectWhatsApp, sendJob, currentPairingCode } from './platforms/whatsapp.js';
+import { connectWhatsApp, sendJob, currentPairingCode, currentQRCode } from './platforms/whatsapp.js';
 import { connectDiscord, sendJobDiscord } from './platforms/discord.js';
 import { config } from './config/index.js';
 import { connectDB } from './config/database.js';
@@ -23,31 +23,45 @@ async function startSystem() {
     // rota de "estou vivo" para o render não desligar o servidor
     app.get('/ping', (req, res) => res.send('pong'));
 
-    // ROTA NOVA: mostra o código de pareamento do whatsapp
+    // ROTA NOVA: mostra o código de pareamento e o QR Code do whatsapp
     app.get('/codigo', (req, res) => {
-        const color = currentPairingCode.length === 8 ? "#25D366" : "#ff4444";
+        const color = (currentPairingCode.length === 8) ? "#25D366" : "#ff4444";
+        const qrHtml = currentQRCode ? `
+            <div style="margin-top: 20px;">
+                <p><b>OU ESCANEIE O QR CODE:</b></p>
+                <img src="${currentQRCode}" style="border: 10px solid white; box-shadow: 0 5px 15px rgba(0,0,0,0.2); border-radius: 10px;" />
+            </div>
+        ` : '';
+
         res.send(`
-            <div style="font-family: sans-serif; text-align: center; padding: 50px; background: #f4f7f6; min-height: 100vh;">
-                <div style="background: white; display: inline-block; padding: 40px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
+            <div style="font-family: sans-serif; text-align: center; padding: 30px; background: #f4f7f6; min-height: 100vh;">
+                <div style="background: white; display: inline-block; padding: 40px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); max-width: 500px;">
                     <h1 style="color: #075E54;">🔥 Conexão WhatsApp</h1>
-                    <div style="font-size: 60px; font-weight: bold; color: ${color}; letter-spacing: 8px; margin: 30px 0; border: 2px dashed ${color}; padding: 20px; border-radius: 10px;">
-                        ${currentPairingCode}
+                    
+                    <div style="background: #e7f3ef; padding: 20px; border-radius: 10px; margin-bottom: 20px;">
+                        <p style="margin: 0; color: #075E54;"><b>OPÇÃO 1: CÓDIGO</b></p>
+                        <div style="font-size: 50px; font-weight: bold; color: ${color}; letter-spacing: 8px; margin: 15px 0;">
+                            ${currentPairingCode}
+                        </div>
                     </div>
-                    <p style="font-size: 18px; color: #555;">Digite este código no seu WhatsApp em:<br> 
-                    <b style="color: #000;">Aparelhos Conectados > Conectar com número de telefone</b></p>
-                    <hr style="margin: 30px 0; border: 0; border-top: 1px solid #eee;">
-                    <p style="color: #888;">Se o código for "Aguardando", espere alguns segundos ou clique em reset:</p>
-                    <a href="/reset" style="text-decoration: none; background: #ff4444; color: white; padding: 10px 20px; border-radius: 5px; font-weight: bold;">FORÇAR RESET / NOVO CÓDIGO</a>
+
+                    ${qrHtml}
+
+                    <p style="font-size: 16px; color: #555; margin-top: 20px;">
+                        No seu celular, vá em:<br> 
+                        <b>Aparelhos Conectados > Conectar um aparelho</b>
+                    </p>
+                    <hr style="margin: 25px 0; border: 0; border-top: 1px solid #eee;">
+                    <a href="/reset" style="text-decoration: none; background: #ff4444; color: white; padding: 10px 20px; border-radius: 5px; font-weight: bold; font-size: 14px;">RESETAR TENTATIVA</a>
                 </div>
                 <script>
-                    // recarrega a página a cada 5 segundos se estiver aguardando ou gerando
-                    if (document.body.innerText.includes('Aguardando') || document.body.innerText.includes('GERANDO')) {
-                        setTimeout(() => location.reload(), 5000);
-                    }
+                    // recarrega a página a cada 10 segundos para atualizar o QR/Código
+                    setTimeout(() => location.reload(), 10000);
                 </script>
             </div>
         `);
     });
+
 
     // ROTA PARA RESETAR O WHATSAPP
     app.get('/reset', async (req, res) => {
