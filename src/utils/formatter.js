@@ -26,8 +26,11 @@ export async function translateText(text) {
     });
     return result[0];
   } catch (error) {
-    console.error("⚠️ [translator] erro ao traduzir:", error.message);
-    return text;
+    // se der erro de limite (429), não avisa no console toda hora para não poluir
+    if (!error?.message?.includes('429')) {
+        console.error("⚠️ [translator] erro ao traduzir:", error.message);
+    }
+    return text; // retorna o texto original (inglês) como fallback
   }
 }
 

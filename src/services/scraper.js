@@ -20,11 +20,12 @@ export async function runScrapersAndNotify() {
             ...gupySourceJobs.map(j => normalizeGupyJob(j.raw))
         ];
 
-        console.log(`✅ [scraper-service] ${allJobs.length} vagas encontradas. enviando para o bot...`);
+        console.log(`✅ [scraper-service] ${allJobs.length} vagas encontradas. enviando para o bot aos poucos...`);
 
-        // passa por cada vaga encontrada e avisa o bot via webhook
+        // passa por cada vaga encontrada e avisa o bot via webhook com um intervalo
         for (const job of allJobs) {
             await notifyBot(job);
+            await new Promise(resolve => setTimeout(resolve, 2000)); // espera 2 segundos entre as vagas
         }
 
     } catch (error) {
