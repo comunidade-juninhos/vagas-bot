@@ -1,27 +1,27 @@
-/**
- * modelo padrão de uma vaga (job) no sistema.
- * serve para garantir que todos os dados tenham o mesmo formato
- */
-export class Vaga {
-    constructor(data) {
-        this.title = data.title; // título da vaga
-        this.company = data.company; // nome da empresa
-        this.description = data.description; // texto da descrição
-        this.location = data.location || 'não informado'; // local ou país
-        this.url = data.url; // link para se candidatar
-        this.source = data.source; // de onde veio (linkedin, gupy, etc)
-        this.workMode = data.workMode || 'onsite'; // remote, hybrid ou onsite
-        this.seniority = data.seniority || 'n/a'; // junior, pleno, senior
-        this.stack = data.stack || []; // tecnologias (react, node, etc)
-        this.originalLanguage = data.originalLanguage || 'en'; // idioma original da vaga (usado para as bandeiras)
-        this.createdAt = data.createdAt || new Date().toISOString(); // data de quando foi encontrada
-    }
+import mongoose from 'mongoose';
 
-    /**
-     * valida se os campos obrigatórios estão preenchidos
-     */
-    isValid() {
-        return !!(this.title && this.company && this.url);
-    }
-}
+// esquema da vaga para o mongodb
+const VagaSchema = new mongoose.Schema({
+    title: { type: String, required: true }, // título da vaga
+    company: { type: String, required: true }, // nome da empresa
+    description: String, // descrição completa
+    location: { type: String, default: 'não informado' }, // localidade
+    url: { type: String, required: true, unique: true }, // link único da vaga
+    source: String, // fonte (remotar, gupy, linkedin)
+    externalId: String, // id da vaga na plataforma de origem
+    workMode: { type: String, default: 'onsite' }, // remoto, híbrido, presencial
+    seniority: { type: String, default: 'n/a' }, // senioridade
+    stack: [String], // lista de tecnologias
+    originalLanguage: { type: String, default: 'en' }, // idioma original para as bandeiras
+    contentHash: { type: String, unique: true }, // hash para evitar duplicidade de conteúdo
+    scrapedAt: { type: Date, default: Date.now }, // data de quando foi capturada
+    publishedAt: Date, // data de quando foi publicada na origem
+    createdAt: { type: Date, default: Date.now } // data de criação no nosso banco
+});
 
+// cria índices de busca por texto para o título e descrição
+VagaSchema.index({ title: 'text', description: 'text', company: 'text' });
+
+const VagaModel = mongoose.models.Vaga || mongoose.model('Vaga', VagaSchema);
+
+export default VagaModel;
