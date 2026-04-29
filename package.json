@@ -11,6 +11,7 @@
   },
 
   "scripts": {
+    "start": "tsx src/index.js",
     "api": "node apps/api/src/index.js",
     "scrape": "tsx apps/worker-scraper/src/index.ts",
     "scrape:remotar": "tsx apps/worker-scraper/src/index.ts",

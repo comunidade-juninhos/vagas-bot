@@ -8,7 +8,7 @@ import { config } from '../config/index.js';
  */
 export async function runScrapersAndNotify() {
     console.log("🔍 [scraper-service] iniciando busca de vagas...");
-    
+
     try {
         // busca vagas (aqui você pode configurar quantas páginas quer buscar)
         const remotarSourceJobs = await fetchRemotarJobs({ maxPages: 1, active: true });
@@ -40,7 +40,7 @@ async function notifyBot(job) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(job)
         });
-        
+
         if (response.ok) {
             console.log(`✅ [notify] vaga enviada: ${job.title}`);
         }

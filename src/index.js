@@ -19,7 +19,7 @@ async function startSystem() {
     // 2. liga as conexões com o whatsapp e discord
     await connectWhatsApp();
     const discordClient = await connectDiscord();
-    
+
     // rota de "estou vivo" para o render não desligar o servidor
     app.get('/ping', (req, res) => res.send('pong'));
 
@@ -48,7 +48,7 @@ async function startSystem() {
 
             // tenta enviar a vaga para o grupo de whatsapp
             await sendJob(jobData, config.whatsapp.groupId);
-            
+
             // se o discord estiver logado, envia para o canal configurado
             if (discordClient && config.discord.channelId) {
                 await sendJobDiscord(discordClient, jobData, config.discord.channelId);
@@ -61,7 +61,21 @@ async function startSystem() {
     });
 
     // liga o servidor na porta configurada (geralmente 3000)
-    app.listen(config.port, () => console.log(`📡 server listening on port ${config.port}`));
+    app.listen(config.port, () => {
+        console.log(`📡 server listening on port ${config.port}`);
+        
+        // inicia o loop automático de busca de vagas (a cada 1 hora)
+        const UMA_HORA = 60 * 60 * 1000;
+        console.log("⏰ [SYSTEM] Loop de busca automática ativado (1h)");
+        
+        // roda uma vez agora no início
+        runScrapersAndNotify();
+        
+        // e depois repete a cada hora
+        setInterval(() => {
+            runScrapersAndNotify();
+        }, UMA_HORA);
+    });
 }
 
 startSystem();
