@@ -25,7 +25,7 @@ export async function runScrapersAndNotify() {
         // passa por cada vaga encontrada e avisa o bot via webhook com um intervalo
         for (const job of allJobs) {
             await notifyBot(job);
-            await new Promise(resolve => setTimeout(resolve, 2000)); // espera 2 segundos entre as vagas
+            await new Promise(resolve => setTimeout(resolve, 60000)); // espera 1 minuto entre as vagas
         }
 
     } catch (error) {
