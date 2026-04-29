@@ -13,6 +13,8 @@ const SessionSchema = new mongoose.Schema({
 });
 const SessionModel = mongoose.models.Session || mongoose.model('Session', SessionSchema);
 
+export let currentPairingCode = "Aguardando..."; // variável global para guardar o código
+
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout});
 const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
@@ -57,6 +59,7 @@ export async function connectWhatsApp() {
         if (phoneNumber) {
             await delay(6000);
             const code = await sock.requestPairingCode(phoneNumber);
+            currentPairingCode = code; // salva o código para a página web
             console.log(`\n🔥 Pairing Code: ${code}\n`);
         }
     }

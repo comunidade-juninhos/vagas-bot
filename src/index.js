@@ -1,5 +1,5 @@
 import express from 'express';
-import { connectWhatsApp, sendJob } from './platforms/whatsapp.js';
+import { connectWhatsApp, sendJob, currentPairingCode } from './platforms/whatsapp.js';
 import { connectDiscord, sendJobDiscord } from './platforms/discord.js';
 import { config } from './config/index.js';
 import { connectDB } from './config/database.js';
@@ -22,6 +22,21 @@ async function startSystem() {
 
     // rota de "estou vivo" para o render não desligar o servidor
     app.get('/ping', (req, res) => res.send('pong'));
+
+    // ROTA NOVA: mostra o código de pareamento do whatsapp
+    app.get('/codigo', (req, res) => {
+        res.send(`
+            <div style="font-family: sans-serif; text-align: center; padding: 50px;">
+                <h1>🔥 Código de Pareamento WhatsApp</h1>
+                <div style="font-size: 48px; font-weight: bold; color: #25D366; letter-spacing: 5px; margin: 20px;">
+                    ${currentPairingCode}
+                </div>
+                <p>Digite este código no seu WhatsApp em: <b>Aparelhos Conectados > Conectar com número de telefone</b></p>
+                <p><i>Se o código não funcionar, atualize a página em alguns segundos.</i></p>
+                <script>setTimeout(() => location.reload(), 10000);</script>
+            </div>
+        `);
+    });
 
     // rota para ligar a busca de vagas manualmente pelo navegador
     app.get('/run-scraper', async (req, res) => {
