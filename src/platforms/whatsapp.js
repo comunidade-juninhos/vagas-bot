@@ -46,7 +46,8 @@ export async function connectWhatsApp() {
         logger: pino({ level: "error" }),
         printQRInTerminal: process.env.AUTH_METHOD === 'qr',
         auth: state,
-        browser: ["Mac OS", "Chrome", "10.15.7"],
+        // usando Ubuntu/Chrome para maior estabilidade no pareamento
+        browser: ["Ubuntu", "Chrome", "20.0.0.0"],
     });
 
     socketInstance = sock;
@@ -54,15 +55,28 @@ export async function connectWhatsApp() {
     // lógica para login via código de pareamento
     if (process.env.AUTH_METHOD === 'code' && !sock.authState.creds.registered) {
         let phoneNumber = process.env.MOBILE_NUMBER;
-        if (!phoneNumber) phoneNumber = await question('Enter your mobile number: ');
+        if (!phoneNumber) {
+            currentPairingCode = "FALTA NÚMERO NO .ENV";
+            console.log("⚠️ [WHATSAPP] Erro: MOBILE_NUMBER não configurado no Render!");
+            return sock;
+        }
+
         phoneNumber = phoneNumber.replace(/[^0-9]/g, '');
         if (phoneNumber) {
-            await delay(6000);
-            const code = await sock.requestPairingCode(phoneNumber);
-            currentPairingCode = code; // salva o código para a página web
-            console.log(`\n🔥 Pairing Code: ${code}\n`);
+            console.log(`🔌 [WHATSAPP] Solicitando código para ${phoneNumber}...`);
+            currentPairingCode = "GERANDO...";
+            
+            try {
+                const code = await sock.requestPairingCode(phoneNumber);
+                currentPairingCode = code; // salva o código para a página web
+                console.log(`\n🔥 Pairing Code: ${code}\n`);
+            } catch (err) {
+                console.error("❌ [WHATSAPP] Erro ao pedir código:", err.message);
+                currentPairingCode = "ERRO AO GERAR";
+            }
         }
     }
+
 
     // monitora o estado da conexão
     sock.ev.on("connection.update", async (update) => {

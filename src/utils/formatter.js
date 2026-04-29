@@ -83,6 +83,22 @@ function getLanguageFlag(lang) {
   return LANG_FLAGS[lang?.toLowerCase()] || '🌐';
 }
 
+// tenta deduzir a senioridade se ela vier vazia ou desconhecida
+function detectSeniority(job) {
+  const text = (job.title + ' ' + (job.description || '')).toLowerCase();
+  if (job.seniority && !['unknown', 'desconhecido', 'n/a'].includes(job.seniority.toLowerCase())) {
+    return job.seniority;
+  }
+  
+  if (text.includes('senior') || text.includes('sênior') || text.includes('sr')) return 'Sênior';
+  if (text.includes('pleno') || text.includes('pl')) return 'Pleno';
+  if (text.includes('junior') || text.includes('júnior') || text.includes('jr')) return 'Júnior';
+  if (text.includes('estagiário') || text.includes('estagio') || text.includes('intern')) return 'Estágio';
+  if (text.includes('especialista')) return 'Especialista';
+  
+  return 'Consultar'; // fallback amigável
+}
+
 // função principal que monta a mensagem bonita para o whatsapp/discord
 export async function formatJobMessage(job) {
   const stacks = extractStacks(job.description, job.stack || []);
@@ -110,7 +126,8 @@ export async function formatJobMessage(job) {
     ? `\n🛠️ *techs:* ${stacks.map(s => `_${s}_`).join(', ')}` 
     : `\n🔍 *requisitos:* ver detalhes no link`;
 
-  const seniorityLine = job.seniority ? ` | 🎓 *${job.seniority.toUpperCase()}*` : '';
+  const seniorityText = detectSeniority(job);
+  const seniorityLine = seniorityText ? ` | 🎓 *${seniorityText.toUpperCase()}*` : '';
 
   // montagem final da string da mensagem
   let message = `
@@ -125,6 +142,7 @@ ${workModeEmoji} *modelo:* ${workModeText}${locationSuffix}${seniorityLine}${sta
 📝 *resumo (traduzido):*
 ${translatedSummary}
 `;
+
 
   if (translatedRequirements) {
     message += `\n📋 *principais requisitos:*
