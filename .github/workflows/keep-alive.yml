@@ -1,0 +1,14 @@
+name: Keep Alive Render
+
+on:
+  schedule:
+    - cron: '*/10 * * * *' # Roda a cada 10 minutos
+  workflow_dispatch: # Permite rodar manualmente pelo painel do GitHub
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Service
+        run: |
+          curl -s https://vagas-bot.onrender.com/ping || echo "Serviço ainda acordando..."
