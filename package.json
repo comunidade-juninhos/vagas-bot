@@ -3,7 +3,15 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+
+  "imports": {
+    "#root/*": "./src/*",
+    "#api/*": "./apps/api/src/*",
+    "#core/*": "./packages/core/*"
+  },
+
   "scripts": {
+    "api": "node apps/api/src/index.js",
     "scrape": "tsx apps/worker-scraper/src/index.ts",
     "scrape:remotar": "tsx apps/worker-scraper/src/index.ts",
     "audit:gupy": "tsx scripts/audit-gupy.ts",
@@ -11,15 +19,19 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
+
   "devDependencies": {
     "@types/node": "^20.12.12",
     "tsx": "^4.19.4",
     "typescript": "^5.9.3",
     "vitest": "^2.1.9"
   },
+
   "dependencies": {
     "cheerio": "^1.2.0",
     "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.4.1",
     "mongoose": "^9.6.0",
     "p-limit": "^7.3.0",
     "p-retry": "^8.0.0",
