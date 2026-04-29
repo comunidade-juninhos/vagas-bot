@@ -77,6 +77,18 @@ async function startSystem() {
         res.send("🚀 Scraper iniciado com sucesso!");
     });
 
+    // ROTA PARA LIMPAR O BANCO DE DADOS (USAR APENAS PARA TESTE)
+    app.get('/limpar-banco', async (req, res) => {
+        try {
+            const Vaga = mongoose.model('Vaga');
+            await Vaga.deleteMany({});
+            console.log("🧹 [DATABASE] Banco de dados de vagas limpo com sucesso!");
+            res.send("🧹 Banco de dados limpo! O bot vai reenviar tudo na próxima varredura.");
+        } catch (err) {
+            res.status(500).send("Erro ao limpar banco: " + err.message);
+        }
+    });
+
     // rota de webhook onde o scraper envia as vagas novas encontradas
     app.post('/webhook/nova-vaga', async (req, res) => {
         const jobData = req.body;
