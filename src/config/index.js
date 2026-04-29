@@ -1,22 +1,22 @@
-import 'dotenv/config';
-
 // arquivo central de configurações que lê as variáveis do .env
 export const config = {
-    port: process.env.PORT || 3000, // porta onde o servidor vai rodar
+    port: process.env.PORT || 3000, // porta onde o servidor vai rodar (o render define isso automaticamente)
     whatsapp: {
-        groupId: process.env.WHATSAPP_GROUP_ID || '120363406857942739@g.us', // id do grupo que recebe as vagas
-        authMethod: process.env.AUTH_METHOD || 'code', // método de login: qr ou code
-        mobileNumber: process.env.MOBILE_NUMBER // seu número de telefone
+        groupId: process.env.WHATSAPP_GROUP_ID || '120363406857942739@g.us',
+        authMethod: process.env.AUTH_METHOD || 'code',
+        mobileNumber: process.env.MOBILE_NUMBER
     },
     discord: {
-        token: process.env.DISCORD_TOKEN, // token secreto do bot do discord
-        channelId: process.env.DISCORD_CHANNEL_ID, // id do canal onde as vagas são postadas
+        token: process.env.DISCORD_TOKEN,
+        channelId: process.env.DISCORD_CHANNEL_ID,
     },
     webhook: {
-        url: process.env.WEBHOOK_URL || `http://localhost:3000/webhook/nova-vaga` // endereço para onde o scraper manda as vagas
+        // gera a url do webhook dinamicamente com base na porta atual
+        url: process.env.WEBHOOK_URL || `http://localhost:${process.env.PORT || 3000}/webhook/nova-vaga`
     },
     database: {
-        uri: process.env.MONGODB_URI // url do banco de dados (mongo/mongoose)
+        uri: process.env.MONGODB_URI
     }
 };
+
 
