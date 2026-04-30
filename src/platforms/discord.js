@@ -1,6 +1,6 @@
 import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import 'dotenv/config';
-import { translateText, detectAndTranslate, extractRequirements, extractStacks, cleanLocation, detectSeniority } from '../utils/formatter.js';
+import { translateText, detectAndTranslate, extractRequirements, extractStacks, cleanLocation, detectSeniority, getLangInfo } from '../utils/formatter.js';
 
 // função para ligar o bot do discord
 export async function connectDiscord() {
@@ -40,17 +40,8 @@ export async function sendJobDiscord(client, job, channelId) {
         const rawRequirements = extractRequirements(job.description);
         const translatedRequirements = rawRequirements ? await translateText(rawRequirements) : null;
         
-        // mapa de label de origem por idioma detectado
-        const ORIGIN_LABELS = {
-            'en': '🇺🇸 vaga internacional (eua/uk)',
-            'es': '🇪🇸 vaga internacional (esp/latam)',
-            'fr': '🇫🇷 vaga internacional (frança)',
-            'de': '🇩🇪 vaga internacional (alemanha)',
-            'zh': '🇨🇳 vaga internacional (china)',
-            'ja': '🇯🇵 vaga internacional (japão)',
-            'ko': '🇰🇷 vaga internacional (coreia)',
-        };
-        const originLabel = ORIGIN_LABELS[detectedLang] || (detectedLang !== 'pt' ? '🌐 vaga internacional' : null);
+        const langInfo = getLangInfo(detectedLang);
+        const originLabel = langInfo.label || `${langInfo.flag} vaga internacional`;
         
         const stacks = extractStacks(job.description, job.stack || []);
 
@@ -84,7 +75,7 @@ export async function sendJobDiscord(client, job, channelId) {
         // constrói o objeto da mensagem (embed)
         const embed = new EmbedBuilder()
             .setColor(color)
-            .setTitle(`🚀 ${job.title}`)
+            .setTitle(`${langInfo.flag} 🚀 ${job.title}`)
             .setAuthor({ name: job.company })
             .setDescription(`**resumo:**\n${translatedSummary}`)
             .addFields(
@@ -98,7 +89,7 @@ export async function sendJobDiscord(client, job, channelId) {
             embed.addFields({ name: '🛠️ stack / tecnologias', value: stacks.map(s => `\`${s}\``).join(', ') });
         }
 
-        // adiciona o label de origem se a vaga for internacional
+        // adiciona o label de origem e bandeira para todas as vagas
         if (originLabel) {
             embed.addFields({ name: '🌐 origem', value: originLabel });
         }

@@ -86,7 +86,7 @@ const LANG_INFO = {
 };
 
 // retorna a bandeira e o label de origem baseado no idioma detectado
-function getLangInfo(lang) {
+export function getLangInfo(lang) {
   return LANG_INFO[lang?.toLowerCase()] || { flag: '🌐', label: '🌐 vaga internacional' };
 }
 
