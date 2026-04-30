@@ -38,6 +38,7 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-rate-limit": "^8.4.1",
+    "link-preview-js": "^3.0.5",
     "mongoose": "^9.6.0",
     "p-limit": "^7.3.0",
     "p-retry": "^8.0.0",
