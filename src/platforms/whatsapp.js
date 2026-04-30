@@ -44,10 +44,23 @@ const NOISY_BAILEYS_PATTERNS = [
     'failed to decrypt message',
     'session record',
     'status@broadcast',
+    'stream errored out',
+    'closing open session in favor of incoming prekey bundle',
+    'bad mac',
+    'failed to process sender key distribution message',
+    'failed to decode plaintext newsletter message',
+    'invalid mex newsletter notification',
+    'invalid newsletter notification',
+    'failed to send retry after error handling',
+    'error in handling message',
+    'retrying pre-key upload',
+    'uploading pre-keys',
+    'failed to upload pre-keys',
 ];
 
 function stringifyLogArg(arg) {
     if (typeof arg === 'string') return arg;
+    if (arg instanceof Error) return String(arg);
     try {
         return JSON.stringify(arg);
     } catch {
@@ -61,6 +74,7 @@ function isNoisyBaileysLog(...args) {
 }
 
 const baileysLogger = {
+    level: 'error',
     trace: () => {},
     debug: () => {},
     info: () => {},
@@ -72,9 +86,14 @@ const baileysLogger = {
         if (isNoisyBaileysLog(...args)) return;
         console.error('[BAILEYS ERROR]', ...args);
     },
+    fatal: (...args) => {
+        if (isNoisyBaileysLog(...args)) return;
+        console.error('[BAILEYS FATAL]', ...args);
+    },
     child: function () {
         return this;
-    }
+    },
+    isLevelEnabled: () => false,
 };
 
 function normalizeErrorMessage(error) {
