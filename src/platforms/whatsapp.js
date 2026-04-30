@@ -71,6 +71,9 @@ const baileysLogger = {
     error: (...args) => {
         if (isNoisyBaileysLog(...args)) return;
         console.error('[BAILEYS ERROR]', ...args);
+    },
+    child: function () {
+        return this;
     }
 };
 
