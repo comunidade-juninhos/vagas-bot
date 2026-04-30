@@ -2,10 +2,11 @@ import translate from 'translate-google-api';
 
 // lista de palavras-chave para identificar stacks tecnológicas na descrição
 const TECH_KEYWORDS = [
-  'React', 'Node', 'Python', 'Java', 'Javascript', 'Typescript', 'TypeScript', 'JavaScript', 
+  'React', 'Node', 'Python', 'Java', 'JavaScript', 'TypeScript', 
   'AWS', 'Docker', 'Kubernetes', 'SQL', 'NoSQL', 'PHP', 'Ruby', 'Go', 'Flutter', 'Angular', 
   'Vue', 'C#', '.NET', 'Kotlin', 'Swift', 'Azure', 'GCP', 'Spring', 'Hibernate', 'Laravel'
 ];
+
 
 // função que varre o texto e extrai as tecnologias encontradas
 export function extractStacks(description, existingStacks = []) {
@@ -84,19 +85,22 @@ function getLanguageFlag(lang) {
 }
 
 // tenta deduzir a senioridade se ela vier vazia ou desconhecida
-function detectSeniority(job) {
+export function detectSeniority(job) {
   const text = (job.title + ' ' + (job.description || '')).toLowerCase();
-  if (job.seniority && !['unknown', 'desconhecido', 'n/a'].includes(job.seniority.toLowerCase())) {
+  
+  // se já tiver uma senioridade válida, usa ela
+  if (job.seniority && !['unknown', 'desconhecido', 'n/a', 'não informado'].includes(job.seniority.toLowerCase())) {
     return job.seniority;
   }
   
-  if (text.includes('senior') || text.includes('sênior') || text.includes('sr')) return 'Sênior';
-  if (text.includes('pleno') || text.includes('pl')) return 'Pleno';
-  if (text.includes('junior') || text.includes('júnior') || text.includes('jr')) return 'Júnior';
-  if (text.includes('estagiário') || text.includes('estagio') || text.includes('intern')) return 'Estágio';
-  if (text.includes('especialista')) return 'Especialista';
+  // busca por palavras-chave no título e descrição
+  if (text.includes('senior') || text.includes('sênior') || /\bsr\b/i.test(text)) return 'Sênior';
+  if (text.includes('pleno') || /\bpl\b/i.test(text) || text.includes('mid-level')) return 'Pleno';
+  if (text.includes('junior') || text.includes('júnior') || /\bjr\b/i.test(text)) return 'Júnior';
+  if (text.includes('estagiário') || text.includes('estagio') || text.includes('intern') || text.includes('trainee')) return 'Estágio';
+  if (text.includes('especialista') || text.includes('specialist') || text.includes('lead') || text.includes('staff')) return 'Especialista';
   
-  return 'Consultar'; // fallback amigável
+  return 'Não Informado'; 
 }
 
 // função principal que monta a mensagem bonita para o whatsapp/discord
@@ -139,9 +143,10 @@ ${sourceEmoji} *VAGA DETECTADA* ${langFlag}
 
 ${workModeEmoji} *modelo:* ${workModeText}${locationSuffix}${seniorityLine}${stackLine}
 
-📝 *resumo (traduzido):*
+📝 *resumo:*
 ${translatedSummary}
 `;
+
 
 
   if (translatedRequirements) {

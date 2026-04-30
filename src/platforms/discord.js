@@ -1,6 +1,6 @@
 import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import 'dotenv/config';
-import { translateText, extractRequirements, extractStacks, cleanLocation } from '../utils/formatter.js';
+import { translateText, extractRequirements, extractStacks, cleanLocation, detectSeniority } from '../utils/formatter.js';
 
 // função para ligar o bot do discord
 export async function connectDiscord() {
@@ -47,12 +47,25 @@ export async function sendJobDiscord(client, job, channelId) {
         const cleanedLocation = cleanLocation(job.location);
         const locationSuffix = (job.workMode !== 'remote' && cleanedLocation) ? ` (${cleanedLocation})` : '';
 
-        // define a cor do embed baseado na senioridade da vaga
-        const seniority = (job.seniority || 'unknown').toLowerCase();
-        let color = '#0099ff'; // azul padrão
-        if (seniority.includes('senior')) color = '#ffcc00'; // amarelo
-        else if (seniority.includes('mid') || seniority.includes('pleno')) color = '#95a5a6'; // cinza
-        else if (seniority.includes('junior')) color = '#e67e22'; // laranja
+        // paleta de cores premium (roxo)
+        const palette = ['#7924ec', '#d580f8', '#080628', '#b130ff', '#5a0cb1'];
+        
+        // define a cor e o texto do embed baseado na senioridade da vaga
+        const seniorityText = detectSeniority(job);
+        const seniority = seniorityText.toLowerCase();
+        let color = palette[Math.floor(Math.random() * palette.length)]; // cor aleatória da paleta como fallback
+        
+        if (seniority.includes('senior') || seniority.includes('sênior')) {
+            color = '#7924ec'; // roxo vibrante para sênior
+        } else if (seniority.includes('mid') || seniority.includes('pleno')) {
+            color = '#d580f8'; // roxo claro para pleno
+        } else if (seniority.includes('junior') || seniority.includes('júnior') || seniority.includes('estágio')) {
+            color = '#b130ff'; // roxo intermediário para júnior
+        } else if (seniority.includes('não informado')) {
+            // se for desconhecido, pega uma cor aleatória da paleta para variar
+            color = palette[Math.floor(Math.random() * palette.length)];
+        }
+
 
         // constrói o objeto da mensagem (embed)
         const embed = new EmbedBuilder()
@@ -63,7 +76,7 @@ export async function sendJobDiscord(client, job, channelId) {
             .addFields(
                 { name: '🏢 empresa', value: job.company, inline: true },
                 { name: '💻 modelo de trabalho', value: `${workModeEmoji} ${workModeText}${locationSuffix}`, inline: true },
-                { name: '🎓 nível', value: (job.seniority || 'n/a').toUpperCase(), inline: true },
+                { name: '🎓 nível', value: seniorityText.toUpperCase(), inline: true },
             );
 
         // adiciona as tecnologias se encontradas

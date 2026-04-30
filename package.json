@@ -10,20 +10,27 @@
   },
   "scripts": {
     "start": "tsx src/index.js",
+    "bot": "tsx src/index.js",
+    "dev:bot": "tsx --watch src/index.js",
+    "dev:scraper": "tsx --watch apps/worker-scraper/src/index.ts",
+    "dev": "npx concurrently -n \"BOT,SCRAPER\" -c \"blue,green\" \"npm run dev:bot\" \"npm run dev:scraper\"",
     "api": "node apps/api/src/index.js",
     "scrape": "tsx apps/worker-scraper/src/index.ts",
     "scrape:remotar": "tsx apps/worker-scraper/src/index.ts",
     "audit:gupy": "tsx scripts/audit-gupy.ts",
     "audit:remotar": "tsx scripts/audit-remotar.ts",
     "test": "vitest run",
+    "test:notify": "tsx scripts/test-notifications.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/node": "^20.12.12",
+    "concurrently": "^9.2.1",
     "tsx": "^4.19.4",
     "typescript": "^5.9.3",
     "vitest": "^2.1.9"
   },
+
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "cheerio": "^1.2.0",

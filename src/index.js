@@ -5,6 +5,8 @@ import { config } from './config/index.js';
 import { connectDB } from './config/database.js';
 import { createVaga, updateVagaStatus } from './services/vagaService.js';
 import { runScrapersAndNotify } from './services/scraper.js';
+import mongoose from 'mongoose';
+
 
 const app = express();
 app.use(express.json()); // permite que o servidor entenda json no corpo das requisições
@@ -23,7 +25,7 @@ async function startSystem() {
     // rota de "estou vivo" para o render não desligar o servidor
     app.get('/ping', (req, res) => res.send('pong'));
 
-    // ROTA NOVA: mostra o código de pareamento e o QR Code do whatsapp
+    // rota: mostra o código de pareamento e o qr code do whatsapp
     app.get('/codigo', (req, res) => {
         const color = (currentPairingCode.length === 8) ? "#25D366" : "#ff4444";
         const qrHtml = currentQRCode ? `
@@ -63,7 +65,7 @@ async function startSystem() {
     });
 
 
-    // ROTA PARA RESETAR O WHATSAPP
+    // rota para resetar a conexão do whatsapp
     app.get('/reset', async (req, res) => {
         console.log("♻️ [SYSTEM] Solicitando reset de conexão...");
         await connectWhatsApp();
@@ -77,7 +79,7 @@ async function startSystem() {
         res.send("🚀 Scraper iniciado com sucesso!");
     });
 
-    // ROTA PARA LIMPAR O BANCO DE DADOS (USAR APENAS PARA TESTE)
+    // rota para limpar o banco de dados (usar apenas para teste)
     app.get('/limpar-banco', async (req, res) => {
         try {
             const Vaga = mongoose.model('Vaga');
@@ -142,7 +144,7 @@ async function startSystem() {
         console.log("⏰ [SYSTEM] Loop de busca automática ativado (15m)");
         
         // espera 1 minuto antes de começar a busca automática
-        // isso é CRÍTICO no render para o bot velho desligar e o novo gerar o código certo
+        // isso é crítico no render para o bot velho desligar e o novo gerar o código certo
         setTimeout(() => {
             console.log("⏰ [SYSTEM] Iniciando primeira busca de vagas...");
             runScrapersAndNotify();
