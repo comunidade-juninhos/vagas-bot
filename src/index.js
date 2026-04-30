@@ -1,5 +1,5 @@
 import express from 'express';
-import { connectWhatsApp, sendJob, currentPairingCode, currentQRCode } from './platforms/whatsapp.js';
+import { connectWhatsApp, sendJob, currentPairingCode, currentQRCode, getWhatsAppStatus } from './platforms/whatsapp.js';
 import { connectDiscord, sendJobDiscord } from './platforms/discord.js';
 import { config } from './config/index.js';
 import { connectDB } from './config/database.js';
@@ -12,6 +12,66 @@ import mongoose from 'mongoose';
 
 const app = express();
 app.use(express.json()); // permite que o servidor entenda json no corpo das requisições
+
+const BUSINESS_START_HOUR = 5;   // 05:00
+const BUSINESS_END_HOUR = 24;    // 00:00 (fim do dia)
+const SCHEDULE_INTERVAL_HOURS = 2;
+const SCHEDULE_TIMEZONE = process.env.SCHEDULE_TIMEZONE || 'America/Sao_Paulo';
+let isCycleRunning = false;
+let lastExecutedSlotKey = null;
+
+function getNowInScheduleTimezone() {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat('en-GB', {
+        timeZone: SCHEDULE_TIMEZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    }).formatToParts(now);
+
+    const map = Object.fromEntries(parts.map(part => [part.type, part.value]));
+    return {
+        year: Number(map.year),
+        month: Number(map.month),
+        day: Number(map.day),
+        hour: Number(map.hour),
+        minute: Number(map.minute),
+        second: Number(map.second)
+    };
+}
+
+function shouldRunCommercialCycle(nowParts) {
+    const { hour, minute } = nowParts;
+    if (minute !== 0) return false;
+    if (hour < BUSINESS_START_HOUR || hour >= BUSINESS_END_HOUR) return false;
+    return (hour - BUSINESS_START_HOUR) % SCHEDULE_INTERVAL_HOURS === 0;
+}
+
+async function runScheduledCycle(reason) {
+    if (isCycleRunning) {
+        console.log(`⏳ [scheduler] ciclo ignorado (${reason}) porque outro ciclo ainda está em execução.`);
+        return;
+    }
+
+    isCycleRunning = true;
+    const wa = getWhatsAppStatus();
+    const cycleStartedAt = new Date().toISOString();
+    console.log(`▶️ [cycle] start=${cycleStartedAt} motivo=${reason} waReady=${wa.isReady} reconnecting=${wa.reconnectInProgress} failSeq=${wa.consecutiveSendFailures}`);
+
+    try {
+        const result = await runScrapersAndNotify();
+        const waAfter = getWhatsAppStatus();
+        console.log(`✅ [cycle] fim motivo=${reason} encontradas=${result?.foundJobs ?? 0} enviadas=${result?.sentJobs ?? 0} falhas=${result?.notifyErrors ?? 0} duracaoMs=${result?.durationMs ?? 0} waReady=${waAfter.isReady}`);
+    } catch (error) {
+        console.error(`❌ [cycle] erro no ciclo (${reason}):`, error.message);
+    } finally {
+        isCycleRunning = false;
+    }
+}
 
 // função principal que liga todo o sistema
 async function startSystem() {
@@ -77,7 +137,7 @@ async function startSystem() {
 
     // rota para ligar a busca de vagas manualmente pelo navegador
     app.get('/run-scraper', async (req, res) => {
-        runScrapersAndNotify(); // dispara a busca em segundo plano
+        runScheduledCycle('manual');
         res.send("🚀 Scraper iniciado com sucesso!");
     });
 
@@ -141,22 +201,22 @@ async function startSystem() {
     app.listen(config.port, () => {
         console.log(`📡 server listening on port ${config.port}`);
         
-        // inicia o loop automático de busca de vagas (a cada 2 horas)
-        // limite de 2 vagas por ciclo para não floodar o grupo (decisão da liderança)
-        const DOIS_HOURS = 2 * 60 * 60 * 1000;
         const UM_DIA = 24 * 60 * 60 * 1000;
-        console.log("⏰ [system] loop de envio ativado (2 vagas a cada 2h)");
+        console.log(`⏰ [system] scheduler comercial ativado (${BUSINESS_START_HOUR}:00-${BUSINESS_END_HOUR}:00, a cada ${SCHEDULE_INTERVAL_HOURS}h, tz=${SCHEDULE_TIMEZONE})`);
         
-        // espera 1 minuto antes de começar a busca automática
-        // isso é crítico no render para o bot velho desligar e o novo gerar o código certo
+        // espera 1 minuto para estabilizar conexões antes de começar a agenda
         setTimeout(() => {
-            console.log("⏰ [system] iniciando primeira busca de vagas...");
-            runScrapersAndNotify();
-            
-            // repete a cada 2 horas
+            console.log("🕐 [scheduler] monitor iniciado (checagem a cada minuto)");
             setInterval(() => {
-                runScrapersAndNotify();
-            }, DOIS_HOURS);
+                const now = getNowInScheduleTimezone();
+                const slotKey = `${now.year}-${String(now.month).padStart(2, '0')}-${String(now.day).padStart(2, '0')} ${String(now.hour).padStart(2, '0')}:00`;
+
+                if (!shouldRunCommercialCycle(now)) return;
+                if (lastExecutedSlotKey === slotKey) return;
+
+                lastExecutedSlotKey = slotKey;
+                runScheduledCycle(`slot-${slotKey}`);
+            }, 60 * 1000);
 
             // limpeza do banco uma vez por dia (remove vagas com mais de 1 mês)
             setInterval(() => {

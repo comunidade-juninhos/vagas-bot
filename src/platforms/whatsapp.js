@@ -30,6 +30,50 @@ const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
 let socketInstance = null; // guarda a conexão ativa do whatsapp
 let isReady = false; // sinaliza se o bot está pronto para enviar mensagens
+let lockHeartbeatInterval = null;
+let reconnectInProgress = false;
+let lastReadyAt = null;
+let lastCloseAt = null;
+let lastRepairAt = null;
+let consecutiveSendFailures = 0;
+const MAX_SEND_FAILURES_BEFORE_REPAIR = 5;
+const REPAIR_COOLDOWN_MS = 15 * 60 * 1000;
+
+function normalizeErrorMessage(error) {
+    if (!error) return "";
+    return String(error.message || error).toLowerCase();
+}
+
+async function forceRepairSession(reason) {
+    const now = Date.now();
+    if (lastRepairAt && (now - lastRepairAt) < REPAIR_COOLDOWN_MS) {
+        console.log(`⚠️ [WHATSAPP] Reparo ignorado (cooldown ativo). Motivo: ${reason}`);
+        return;
+    }
+
+    lastRepairAt = now;
+    reconnectInProgress = false;
+    isReady = false;
+    consecutiveSendFailures = 0;
+    currentPairingCode = "REPARANDO SESSAO...";
+
+    console.log(`🚨 [WHATSAPP] Forçando reparo de sessão: ${reason}`);
+    if (fs.existsSync('./auth_info')) fs.rmSync('./auth_info', { recursive: true, force: true });
+    await SessionModel.deleteOne({ id: 'whatsapp_session' });
+    await delay(3000);
+    await connectWhatsApp();
+}
+
+export function getWhatsAppStatus() {
+    return {
+        isReady,
+        hasSocket: Boolean(socketInstance),
+        lastReadyAt,
+        lastCloseAt,
+        reconnectInProgress,
+        consecutiveSendFailures
+    };
+}
 
 // função para ligar o whatsapp via baileys
 export async function connectWhatsApp() {
@@ -54,12 +98,14 @@ export async function connectWhatsApp() {
         );
 
         // atualiza o lock a cada 20 segundos para manter a posse
-        setInterval(async () => {
-            await LockModel.findOneAndUpdate(
-                { id: 'instance_lock' },
-                { lastSeen: new Date() }
-            );
-        }, 20000);
+        if (!lockHeartbeatInterval) {
+            lockHeartbeatInterval = setInterval(async () => {
+                await LockModel.findOneAndUpdate(
+                    { id: 'instance_lock' },
+                    { lastSeen: new Date() }
+                );
+            }, 20000);
+        }
     } catch (e) {
         console.error("⚠️ [LOCK] Falha ao gerenciar trava de instância:", e.message);
     }
@@ -122,6 +168,8 @@ export async function connectWhatsApp() {
 
         if (connection === 'close') {
             isReady = false;
+            reconnectInProgress = true;
+            lastCloseAt = new Date().toISOString();
             const statusCode = lastDisconnect?.error?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             
@@ -135,10 +183,13 @@ export async function connectWhatsApp() {
             console.log(`🔌 [WHATSAPP] Conexão fechada (${statusCode}). Reconectando...`);
             if (shouldReconnect) {
                 await delay(10000);
-                connectWhatsApp();
+                await connectWhatsApp();
             }
         } else if (connection === "open") {
             isReady = true;
+            reconnectInProgress = false;
+            lastReadyAt = new Date().toISOString();
+            consecutiveSendFailures = 0;
             currentQRCode = null;
             console.log("✅ [WHATSAPP CONNECTED AND READY]");
         }
@@ -176,6 +227,7 @@ export async function sendJob(job, jid) {
         // verifica se o bot está 100% pronto (evita erro de 'attrs')
         if (isReady) {
             await socketInstance.sendMessage(jid, { text: message });
+            consecutiveSendFailures = 0;
             console.log(`✅ [success] enviada para: ${jid}`);
             return true;
         } else {
@@ -183,7 +235,22 @@ export async function sendJob(job, jid) {
             return false;
         }
     } catch (error) {
+        const errorMessage = normalizeErrorMessage(error);
+        consecutiveSendFailures += 1;
         console.error(`❌ [error] falha ao enviar: ${error.message}`);
+
+        const shouldRepairByError =
+            errorMessage.includes('bad mac') ||
+            errorMessage.includes('prekey') ||
+            errorMessage.includes('no session found') ||
+            errorMessage.includes('no matching sessions');
+
+        const shouldRepairByVolume = consecutiveSendFailures >= MAX_SEND_FAILURES_BEFORE_REPAIR;
+
+        if (shouldRepairByError || shouldRepairByVolume) {
+            await forceRepairSession(shouldRepairByError ? error.message : "muitas falhas consecutivas de envio");
+        }
+
         return false;
     }
 }

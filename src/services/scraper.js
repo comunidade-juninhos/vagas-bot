@@ -7,6 +7,7 @@ import { config } from '../config/index.js';
  * ele liga os scrapers das pastas 'packages' com o servidor do bot
  */
 export async function runScrapersAndNotify() {
+    const startedAt = Date.now();
     console.log("🔍 [scraper-service] iniciando busca de vagas...");
 
     try {
@@ -25,6 +26,7 @@ export async function runScrapersAndNotify() {
         // limita a 2 vagas por ciclo para nao floodar o grupo
         const MAX_JOBS_PER_RUN = 2;
         let sentCount = 0;
+        let notifyErrorCount = 0;
 
         for (const job of allJobs) {
             if (sentCount >= MAX_JOBS_PER_RUN) {
@@ -32,12 +34,35 @@ export async function runScrapersAndNotify() {
                 break;
             }
             const wasSent = await notifyBot(job);
-            if (wasSent) sentCount++;
+            if (wasSent) {
+                sentCount++;
+            } else {
+                notifyErrorCount++;
+            }
             await new Promise(resolve => setTimeout(resolve, 3000)); // pequena pausa entre envios
         }
 
+        const summary = {
+            foundJobs: allJobs.length,
+            sentJobs: sentCount,
+            notifyErrors: notifyErrorCount,
+            maxPerRun: MAX_JOBS_PER_RUN,
+            durationMs: Date.now() - startedAt
+        };
+
+        console.log(`📊 [scraper-service] ciclo finalizado | encontradas=${summary.foundJobs} | enviadas=${summary.sentJobs} | falhas=${summary.notifyErrors} | duracaoMs=${summary.durationMs}`);
+        return summary;
+
     } catch (error) {
         console.error("❌ [scraper-service] erro durante o scraping:", error.message);
+        return {
+            foundJobs: 0,
+            sentJobs: 0,
+            notifyErrors: 1,
+            maxPerRun: 2,
+            durationMs: Date.now() - startedAt,
+            error: error.message
+        };
     }
 }
 
