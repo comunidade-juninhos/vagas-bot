@@ -1,6 +1,6 @@
 import { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import 'dotenv/config';
-import { translateText, extractRequirements, extractStacks, cleanLocation, detectSeniority } from '../utils/formatter.js';
+import { translateText, detectAndTranslate, extractRequirements, extractStacks, cleanLocation, detectSeniority } from '../utils/formatter.js';
 
 // função para ligar o bot do discord
 export async function connectDiscord() {
@@ -31,12 +31,26 @@ export async function sendJobDiscord(client, job, channelId) {
         const channel = await client.channels.fetch(channelId);
         if (!channel) throw new Error("canal não encontrado");
 
-        // prepara os dados (tradução e extração de tech)
+        // prepara os dados: detecta idioma, traduz o resumo e os requisitos
         const rawSummary = job.description ? (job.description.substring(0, 300).trim() + '...') : '';
-        const translatedSummary = rawSummary ? await translateText(rawSummary) : 'confira os detalhes no link.';
+        const { translated: translatedSummary, detectedLang } = rawSummary
+            ? await detectAndTranslate(rawSummary)
+            : { translated: 'confira os detalhes no link.', detectedLang: 'pt' };
         
         const rawRequirements = extractRequirements(job.description);
         const translatedRequirements = rawRequirements ? await translateText(rawRequirements) : null;
+        
+        // mapa de label de origem por idioma detectado
+        const ORIGIN_LABELS = {
+            'en': '🇺🇸 vaga internacional (eua/uk)',
+            'es': '🇪🇸 vaga internacional (esp/latam)',
+            'fr': '🇫🇷 vaga internacional (frança)',
+            'de': '🇩🇪 vaga internacional (alemanha)',
+            'zh': '🇨🇳 vaga internacional (china)',
+            'ja': '🇯🇵 vaga internacional (japão)',
+            'ko': '🇰🇷 vaga internacional (coreia)',
+        };
+        const originLabel = ORIGIN_LABELS[detectedLang] || (detectedLang !== 'pt' ? '🌐 vaga internacional' : null);
         
         const stacks = extractStacks(job.description, job.stack || []);
 
@@ -84,9 +98,15 @@ export async function sendJobDiscord(client, job, channelId) {
             embed.addFields({ name: '🛠️ stack / tecnologias', value: stacks.map(s => `\`${s}\``).join(', ') });
         }
 
+        // adiciona o label de origem se a vaga for internacional
+        if (originLabel) {
+            embed.addFields({ name: '🌐 origem', value: originLabel });
+        }
+
         // adiciona requisitos principais
         if (translatedRequirements) {
             embed.addFields({ name: '📋 requisitos principais', value: translatedRequirements });
+
         }
 
         embed.setFooter({ text: `fonte: ${job.source.toUpperCase()} | 🤖 vagas-bot` })

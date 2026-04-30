@@ -17,22 +17,27 @@ export function extractStacks(description, existingStacks = []) {
   return [...new Set([...existingStacks, ...found])];
 }
 
-// função que traduz o texto para português usando a api do google
-export async function translateText(text) {
-  if (!text) return '';
+// função que traduz e detecta o idioma original do texto
+export async function detectAndTranslate(text) {
+  if (!text) return { translated: '', detectedLang: 'pt' };
   try {
-    const result = await translate(text, {
-      tld: "com",
-      to: "pt",
-    });
-    return result[0];
+    const result = await translate(text, { tld: 'com', to: 'pt' });
+    // a api retorna um array: [0] = texto traduzido, [1] = algumas infos, [2] = lang detectada
+    const translated = Array.isArray(result) ? result[0] : result;
+    const detectedLang = Array.isArray(result) && result[2] ? result[2] : 'pt';
+    return { translated, detectedLang };
   } catch (error) {
-    // se der erro de limite (429), não avisa no console toda hora para não poluir
     if (!error?.message?.includes('429')) {
-        console.error("⚠️ [translator] erro ao traduzir:", error.message);
+      console.error('⚠️ [translator] erro ao traduzir:', error.message);
     }
-    return text; // retorna o texto original (inglês) como fallback
+    return { translated: text, detectedLang: 'pt' }; // fallback sem crash
   }
+}
+
+// mantida para compatibilidade com outros módulos que a usam
+export async function translateText(text) {
+  const { translated } = await detectAndTranslate(text);
+  return translated;
 }
 
 // tenta extrair os requisitos (bullet points) de dentro da descrição da vaga
@@ -66,22 +71,23 @@ export function cleanLocation(location) {
   return cleaned;
 }
 
-// mapa de bandeiras por idioma
-const LANG_FLAGS = {
-  'pt': '🇧🇷',
-  'en': '🇺🇸',
-  'es': '🇪🇸',
-  'fr': '🇫🇷',
-  'de': '🇩🇪',
-  'it': '🇮🇹',
-  'zh': '🇨🇳',
-  'ja': '🇯🇵',
-  'th': '🇹🇭'
+// mapa de bandeiras e contexto de origem por idioma
+const LANG_INFO = {
+  'pt': { flag: '🇧🇷', label: null },                      // português: sem label (vaga local)
+  'en': { flag: '🇺🇸', label: '🇺🇸 vaga internacional (eua/uk)' },
+  'es': { flag: '🇪🇸', label: '🇪🇸 vaga internacional (esp/latam)' },
+  'fr': { flag: '🇫🇷', label: '🇫🇷 vaga internacional (frança)' },
+  'de': { flag: '🇩🇪', label: '🇩🇪 vaga internacional (alemanha)' },
+  'it': { flag: '🇮🇹', label: '🇮🇹 vaga internacional (itália)' },
+  'zh': { flag: '🇨🇳', label: '🇨🇳 vaga internacional (china)' },
+  'ja': { flag: '🇯🇵', label: '🇯🇵 vaga internacional (japão)' },
+  'ko': { flag: '🇰🇷', label: '🇰🇷 vaga internacional (coreia)' },
+  'th': { flag: '🇹🇭', label: '🇹🇭 vaga internacional (tailândia)' },
 };
 
-// retorna a bandeira correta baseada no idioma original
-function getLanguageFlag(lang) {
-  return LANG_FLAGS[lang?.toLowerCase()] || '🌐';
+// retorna a bandeira e o label de origem baseado no idioma detectado
+function getLangInfo(lang) {
+  return LANG_INFO[lang?.toLowerCase()] || { flag: '🌐', label: '🌐 vaga internacional' };
 }
 
 // tenta deduzir a senioridade se ela vier vazia ou desconhecida
@@ -116,12 +122,17 @@ export async function formatJobMessage(job) {
   const locationSuffix = (job.workMode !== 'remote' && cleanedLocation) ? ` (${cleanedLocation})` : '';
 
   const sourceEmoji = job.source === 'gupy' ? '💚' : '💙';
-  const langFlag = getLanguageFlag(job.originalLanguage);
 
-  // processo de tradução do resumo e dos requisitos
+  // detecta o idioma e traduz o resumo
   const rawSummary = job.description ? (job.description.substring(0, 250).trim() + '...') : '';
-  const translatedSummary = rawSummary ? await translateText(rawSummary) : 'confira os detalhes no link.';
-  
+  const { translated: translatedSummary, detectedLang } = rawSummary
+    ? await detectAndTranslate(rawSummary)
+    : { translated: 'confira os detalhes no link.', detectedLang: 'pt' };
+
+  // usa o idioma detectado para mostrar a origem da vaga
+  const langInfo = getLangInfo(detectedLang);
+
+  // traduz os requisitos (se existirem)
   const rawRequirements = extractRequirements(job.description);
   const translatedRequirements = rawRequirements ? await translateText(rawRequirements) : null;
 
@@ -133,15 +144,18 @@ export async function formatJobMessage(job) {
   const seniorityText = detectSeniority(job);
   const seniorityLine = seniorityText ? ` | 🎓 *${seniorityText.toUpperCase()}*` : '';
 
+  // label de origem para vagas internacionais (ex: 🇺🇸 vaga internacional (eua/uk))
+  const originLine = langInfo.label ? `\n🌐 *${langInfo.label}*` : '';
+
   // montagem final da string da mensagem
   let message = `
-${sourceEmoji} *VAGA DETECTADA* ${langFlag}
+${sourceEmoji} *VAGA DETECTADA* ${langInfo.flag}
 
 🚀 *${job.title.toUpperCase()}*
 🏢 *${job.company}*
 ━━━━━━━━━━━━━━━━━━━━━
 
-${workModeEmoji} *modelo:* ${workModeText}${locationSuffix}${seniorityLine}${stackLine}
+${workModeEmoji} *modelo:* ${workModeText}${locationSuffix}${seniorityLine}${stackLine}${originLine}
 
 📝 *resumo:*
 ${translatedSummary}
