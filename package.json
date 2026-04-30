@@ -5,22 +5,22 @@
   "type": "module",
   "imports": {
     "#root/*": "./src/*",
+    "#bots/*": "./apps/bots/src/*",
     "#api/*": "./apps/api/src/*",
     "#core/*": "./packages/core/*"
   },
   "scripts": {
-    "start": "tsx src/index.js",
-    "bot": "tsx src/index.js",
-    "dev:bot": "tsx --watch src/index.js",
+    "start": "tsx apps/bots/src/index.js",
+    "bots": "tsx apps/bots/src/index.js",
+    "dev:bots": "tsx --watch apps/bots/src/index.js",
     "dev:scraper": "tsx --watch apps/worker-scraper/src/index.ts",
-    "dev": "npx concurrently -n \"BOT,SCRAPER\" -c \"blue,green\" \"npm run dev:bot\" \"npm run dev:scraper\"",
+    "dev": "npx concurrently -n \"BOTS,SCRAPER\" -c \"blue,green\" \"npm run dev:bots\" \"npm run dev:scraper\"",
     "api": "node apps/api/src/index.js",
+    "worker": "tsx apps/worker-scraper/src/index.ts",
     "scrape": "tsx apps/worker-scraper/src/index.ts",
-    "scrape:remotar": "tsx apps/worker-scraper/src/index.ts",
     "audit:gupy": "tsx scripts/audit-gupy.ts",
     "audit:remotar": "tsx scripts/audit-remotar.ts",
     "test": "vitest run",
-    "test:notify": "tsx scripts/test-notifications.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
@@ -28,9 +28,11 @@
     "concurrently": "^9.2.1",
     "tsx": "^4.19.4",
     "typescript": "^5.9.3",
-    "vitest": "^2.1.9"
+    "vitest": "^4.1.5"
   },
-
+  "overrides": {
+    "protobufjs": "^7.5.5"
+  },
   "dependencies": {
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "cheerio": "^1.2.0",
@@ -43,7 +45,6 @@
     "p-limit": "^7.3.0",
     "p-retry": "^8.0.0",
     "pino": "^10.3.1",
-    "translate-google-api": "^1.0.4",
     "zod": "^4.3.6"
   }
 }

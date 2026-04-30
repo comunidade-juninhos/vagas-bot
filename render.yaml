@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: vagas-bot-bots
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false
+      - key: AUTH_METHOD
+        value: code
+      - key: WHATSAPP_ENABLED
+        value: false
+      - key: DISCORD_ENABLED
+        value: true
+      - key: MOBILE_NUMBER
+        sync: false
+      - key: WHATSAPP_GROUP_ID
+        sync: false
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: DISCORD_CHANNEL_ID
+        sync: false
+
+  - type: cron
+    name: vagas-bot-worker
+    runtime: docker
+    plan: free
+    schedule: "0 */2 * * *"
+    dockerCommand: npm run worker
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: WEBHOOK_URL
+        sync: false
+      - key: WEBHOOK_SECRET
+        sync: false

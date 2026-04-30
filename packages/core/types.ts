@@ -1,4 +1,4 @@
-export type JobSource = "linkedin" | "indeed" | "gupy" | "remotar";
+export type JobSource = "linkedin" | "indeed" | "gupy" | "remotar" | "meupadrinho";
 
 export type Seniority = "intern" | "junior" | "mid" | "senior" | "unknown";
 

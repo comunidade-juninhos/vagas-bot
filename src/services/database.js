@@ -31,10 +31,10 @@ export async function connectDatabase({ retries = 5, delayMs = 2000 } = {}) {
     return connectionPromise;
   }
 
-  const uri = process.env.MONGO_DATA;
+  const uri = process.env.MONGODB_URI || process.env.MONGO_DATA;
 
   if (!uri) {
-    throw new Error("❌ MONGO_DATA não definido no .env");
+    throw new Error("❌ MONGODB_URI não definido no ambiente");
   }
 
   connectionPromise = connectWithRetry(uri, retries, delayMs);

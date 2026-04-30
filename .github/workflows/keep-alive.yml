@@ -11,4 +11,4 @@ jobs:
     steps:
       - name: Ping Render Service
         run: |
-          curl -s https://vagas-bot-04is.onrender.com/ping || echo "Serviço ainda acordando..."
+          curl -fsS "${RENDER_BOTS_URL:-https://vagas-bot-04is.onrender.com}/health" || echo "Serviço ainda acordando..."
