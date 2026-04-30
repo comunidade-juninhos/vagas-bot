@@ -22,10 +22,18 @@ export async function runScrapersAndNotify() {
 
         console.log(`✅ [scraper-service] ${allJobs.length} vagas encontradas. enviando para o bot aos poucos...`);
 
-        // passa por cada vaga encontrada e avisa o bot via webhook com um intervalo
+        // limita a 2 vagas por ciclo para nao floodar o grupo
+        const MAX_JOBS_PER_RUN = 2;
+        let sentCount = 0;
+
         for (const job of allJobs) {
-            await notifyBot(job);
-            await new Promise(resolve => setTimeout(resolve, 60000)); // espera 1 minuto entre as vagas
+            if (sentCount >= MAX_JOBS_PER_RUN) {
+                console.log(`⏸️ [scraper-service] limite de ${MAX_JOBS_PER_RUN} vagas por ciclo atingido. aguardando o proximo ciclo.`);
+                break;
+            }
+            const wasSent = await notifyBot(job);
+            if (wasSent) sentCount++;
+            await new Promise(resolve => setTimeout(resolve, 3000)); // pequena pausa entre envios
         }
 
     } catch (error) {
@@ -44,7 +52,9 @@ async function notifyBot(job) {
 
         if (response.ok) {
             console.log(`✅ [notify] vaga enviada: ${job.title}`);
+            return true; // retorna true para contabilizar o envio
         }
+        return false;
     } catch (err) {
         console.error(`❌ [notify] erro ao enviar vaga ${job.title}:`, err.message);
     }

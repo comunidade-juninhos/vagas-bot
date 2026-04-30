@@ -109,10 +109,24 @@ export async function createVaga(data) {
 }
 
 export async function updateVagaStatus(id, updateData) {
-  return VagaModel.findByIdAndUpdate(id, { $set: updateData }, { new: true });
+  return VagaModel.findByIdAndUpdate(id, { $set: updateData }, { returnDocument: 'after' });
+}
+
+// remove vagas com mais de 30 dias para manter o banco leve
+export async function cleanupOldJobs() {
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  try {
+    const result = await VagaModel.deleteMany({ createdAt: { $lt: thirtyDaysAgo } });
+    console.log(`🧹 [database] limpeza concluída: ${result.deletedCount} vagas antigas removidas.`);
+  } catch (err) {
+    console.error('❌ [database] erro na limpeza de vagas antigas:', err.message);
+  }
 }
 
 export async function findVagaById(id) {
+
   if (!mongoose.Types.ObjectId.isValid(id)) return null;
 
   return VagaModel.findById(id).lean().maxTimeMS(5000);

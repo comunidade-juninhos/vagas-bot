@@ -4,6 +4,8 @@ import { connectDiscord, sendJobDiscord } from './platforms/discord.js';
 import { config } from './config/index.js';
 import { connectDB } from './config/database.js';
 import { createVaga, updateVagaStatus } from './services/vagaService.js';
+import { cleanupOldJobs } from './repository/vagaRepository.js';
+
 import { runScrapersAndNotify } from './services/scraper.js';
 import mongoose from 'mongoose';
 
@@ -139,20 +141,27 @@ async function startSystem() {
     app.listen(config.port, () => {
         console.log(`📡 server listening on port ${config.port}`);
         
-        // inicia o loop automático de busca de vagas (a cada 15 minutos)
-        const QUINZE_MINUTOS = 15 * 60 * 1000;
-        console.log("⏰ [SYSTEM] Loop de busca automática ativado (15m)");
+        // inicia o loop automático de busca de vagas (a cada 2 horas)
+        // limite de 2 vagas por ciclo para não floodar o grupo (decisão da liderança)
+        const DOIS_HOURS = 2 * 60 * 60 * 1000;
+        const UM_DIA = 24 * 60 * 60 * 1000;
+        console.log("⏰ [system] loop de envio ativado (2 vagas a cada 2h)");
         
         // espera 1 minuto antes de começar a busca automática
         // isso é crítico no render para o bot velho desligar e o novo gerar o código certo
         setTimeout(() => {
-            console.log("⏰ [SYSTEM] Iniciando primeira busca de vagas...");
+            console.log("⏰ [system] iniciando primeira busca de vagas...");
             runScrapersAndNotify();
             
-            // e depois repete a cada 15 minutos
+            // repete a cada 2 horas
             setInterval(() => {
                 runScrapersAndNotify();
-            }, QUINZE_MINUTOS);
+            }, DOIS_HOURS);
+
+            // limpeza do banco uma vez por dia (remove vagas com mais de 1 mês)
+            setInterval(() => {
+                cleanupOldJobs();
+            }, UM_DIA);
         }, 60000); // 1 minuto de delay
     });
 }
