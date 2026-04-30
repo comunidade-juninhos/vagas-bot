@@ -73,7 +73,7 @@ export function cleanLocation(location) {
 
 // mapa de bandeiras e contexto de origem por idioma
 const LANG_INFO = {
-  'pt': { flag: '🇧🇷', label: null },                      // português: sem label (vaga local)
+  'pt': { flag: '🇧🇷', label: '🇧🇷 vaga brasileira' },
   'en': { flag: '🇺🇸', label: '🇺🇸 vaga internacional (eua/uk)' },
   'es': { flag: '🇪🇸', label: '🇪🇸 vaga internacional (esp/latam)' },
   'fr': { flag: '🇫🇷', label: '🇫🇷 vaga internacional (frança)' },
