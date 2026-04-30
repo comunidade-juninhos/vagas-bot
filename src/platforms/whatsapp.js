@@ -1,5 +1,4 @@
 import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaileysVersion, delay } from "@whiskeysockets/baileys";
-import pino from "pino";
 import readline from "readline";
 import fs from "fs";
 import 'dotenv/config';
@@ -38,6 +37,42 @@ let lastRepairAt = null;
 let consecutiveSendFailures = 0;
 const MAX_SEND_FAILURES_BEFORE_REPAIR = 5;
 const REPAIR_COOLDOWN_MS = 15 * 60 * 1000;
+
+const NOISY_BAILEYS_PATTERNS = [
+    'transaction failed, rolling back',
+    'no session found to decrypt message',
+    'failed to decrypt message',
+    'session record',
+    'status@broadcast',
+];
+
+function stringifyLogArg(arg) {
+    if (typeof arg === 'string') return arg;
+    try {
+        return JSON.stringify(arg);
+    } catch {
+        return String(arg);
+    }
+}
+
+function isNoisyBaileysLog(...args) {
+    const text = args.map(stringifyLogArg).join(' ').toLowerCase();
+    return NOISY_BAILEYS_PATTERNS.some((pattern) => text.includes(pattern));
+}
+
+const baileysLogger = {
+    trace: () => {},
+    debug: () => {},
+    info: () => {},
+    warn: (...args) => {
+        if (isNoisyBaileysLog(...args)) return;
+        console.warn('[BAILEYS WARN]', ...args);
+    },
+    error: (...args) => {
+        if (isNoisyBaileysLog(...args)) return;
+        console.error('[BAILEYS ERROR]', ...args);
+    }
+};
 
 function normalizeErrorMessage(error) {
     if (!error) return "";
@@ -129,7 +164,7 @@ export async function connectWhatsApp() {
 
     const sock = makeWASocket({
         version,
-        logger: pino({ level: "error" }),
+        logger: baileysLogger,
         printQRInTerminal: false,
         auth: state,
         browser: ["Ubuntu", "Chrome", "20.0.0.0"],
