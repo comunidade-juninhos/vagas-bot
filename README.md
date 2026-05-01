@@ -79,15 +79,15 @@ No Blueprint do Render, defina `WHATSAPP_ENABLED` conforme o uso do ambiente. De
 
 Projeto desenvolvido em colaboração com divisão de responsabilidades:
 
-- Tayron Silva — Bots  
+- [Tayron Silva](https://github.com/TayronSilva) — Bots  
   - Integração com WhatsApp (Baileys) e Discord  
   - Distribuição automatizada de vagas  
   - Desenvolvimento direto do bot
 
-- danitsdev — Scraping e deduplicação  
+- [danitsdev](https://github.com/danitsdev) — Scraping e deduplicação  
   - Coleta de vagas de múltiplas fontes  
   - Processamento e filtragem de dados duplicados  
 
-- YuukoDev — Backend e camada de dados  
+- [YuukoDev](https://github.com/YuukoDev) — Backend e camada de dados  
   - Modelagem do banco de dados (MongoDB)  
   - Desenvolvimento da API REST
