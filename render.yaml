@@ -29,7 +29,7 @@ services:
         sync: false
       # Variáveis do Scraper que rodará junto com o Bot
       - key: WEBHOOK_URL
-        value: http://localhost:3000/webhooks/jobs
+        value: http://127.0.0.1:3000/webhooks/jobs
       - key: JOB_SOURCES
         value: meupadrinho,remotar
       - key: MEUPADRINHO_MAX_PAGES

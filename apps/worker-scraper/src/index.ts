@@ -48,8 +48,14 @@ const parseSources = (): string[] =>
     .filter(Boolean);
 
 const sendJobCreatedWebhook = async (job: JobDTO): Promise<boolean> => {
-  const webhookUrl = process.env.WEBHOOK_URL;
+  let webhookUrl = process.env.WEBHOOK_URL;
   if (!webhookUrl) return false;
+
+  // Render/PaaS dinâmicos injetam a variável PORT. 
+  // Substitui a porta hardcoded pela porta real em que o bot está rodando
+  if (webhookUrl.includes("localhost:") || webhookUrl.includes("127.0.0.1:")) {
+    webhookUrl = webhookUrl.replace(/:\d+/, `:${process.env.PORT || 3000}`);
+  }
 
   const headers: Record<string, string> = {
     "content-type": "application/json"
