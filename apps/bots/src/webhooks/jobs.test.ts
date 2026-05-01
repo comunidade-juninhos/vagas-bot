@@ -68,6 +68,20 @@ describe("jobs webhook", () => {
     expect(deliver).not.toHaveBeenCalled();
   });
 
+  it("protects monitoring routes when a webhook secret is configured", async () => {
+    const baseUrl = await createTestServer(
+      createJobsWebhookRouter({
+        discordClient: null,
+        webhookSecret: "secret",
+        deliver: vi.fn()
+      })
+    );
+
+    const response = await fetch(`${baseUrl}/webhooks/jobs/stats`);
+
+    expect(response.status).toBe(401);
+  });
+
   it("delivers valid jobs.created events", async () => {
     const deliver = vi.fn(async () => ({
       ok: true,

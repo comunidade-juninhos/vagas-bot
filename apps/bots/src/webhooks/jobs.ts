@@ -42,6 +42,12 @@ export function isWebhookAuthorized(secret: string | undefined, headerValue: str
   }
 }
 
+function rejectUnauthorizedWebhook(req: Request, res: Response, secret: string | undefined): boolean {
+  if (isWebhookAuthorized(secret, req.get("x-webhook-secret"))) return false;
+  res.status(401).json({ ok: false, error: "unauthorized" });
+  return true;
+}
+
 export function createJobsWebhookRouter({
   discordClient,
   webhookSecret = config.webhook.secret,
@@ -55,6 +61,8 @@ export function createJobsWebhookRouter({
 
   // GET /webhooks/jobs — lista vagas recentes (útil para monitoramento)
   router.get("/", async (req: Request, res: Response) => {
+    if (rejectUnauthorizedWebhook(req, res, webhookSecret)) return;
+
     try {
       const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 50);
       const jobs = await getRecentVagas(limit);
@@ -83,7 +91,9 @@ export function createJobsWebhookRouter({
   });
 
   // GET /webhooks/jobs/stats — estatísticas rápidas
-  router.get("/stats", async (_req: Request, res: Response) => {
+  router.get("/stats", async (req: Request, res: Response) => {
+    if (rejectUnauthorizedWebhook(req, res, webhookSecret)) return;
+
     try {
       const result = await getVagas({}, { limit: 100, includeDescription: false });
       const jobs = result.items;
@@ -119,9 +129,7 @@ export function createJobsWebhookRouter({
 
   // POST /webhooks/jobs — recebe webhook de nova vaga do scraper
   router.post("/", async (req: Request, res: Response) => {
-    if (!isWebhookAuthorized(webhookSecret, req.get("x-webhook-secret"))) {
-      return res.status(401).json({ ok: false, error: "unauthorized" });
-    }
+    if (rejectUnauthorizedWebhook(req, res, webhookSecret)) return;
 
     let event;
     try {

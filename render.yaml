@@ -16,9 +16,9 @@ services:
       - key: AUTH_METHOD
         value: code
       - key: WHATSAPP_ENABLED
-        value: false
+        sync: false
       - key: DISCORD_ENABLED
-        value: true
+        sync: false
       - key: MOBILE_NUMBER
         sync: false
       - key: WHATSAPP_GROUP_ID
@@ -42,6 +42,10 @@ services:
         value: "100"
       - key: WEBHOOK_DELAY_MS
         value: "500"
+      - key: WEBHOOK_RETRIES
+        value: "6"
+      - key: WEBHOOK_RETRY_DELAY_MS
+        value: "1000"
       - key: NOTIFICATION_QUIET_HOURS_ENABLED
         value: "true"
       - key: NOTIFICATION_START_HOUR

@@ -70,8 +70,10 @@ npm run worker:once
 
 O projeto já contém um arquivo `render.yaml` otimizado. No painel do Render.com, basta conectar seu repositório que ele vai criar:
 
-- Um **Web Service** para a API e o Bot do WhatsApp/Discord.
-- Um **Cron Job** que roda o Scraper automaticamente a cada 2 horas buscando novas vagas.
+- Um **Web Service** que roda o Bot do WhatsApp/Discord e o Worker Scraper juntos.
+- O Worker Scraper executa em loop, com intervalo configurável por `WORKER_INTERVAL_MS`.
+
+No Blueprint do Render, defina `WHATSAPP_ENABLED` conforme o uso do ambiente. Deixe `false` para rodar só Discord ou `true` para habilitar pareamento/envio no WhatsApp.
 
 ## 👥 Contribuições
 

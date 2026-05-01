@@ -47,36 +47,141 @@ const parseSources = (): string[] =>
     .map((source) => source.trim().toLowerCase())
     .filter(Boolean);
 
-const sendJobCreatedWebhook = async (job: JobDTO): Promise<boolean> => {
-  let webhookUrl = process.env.WEBHOOK_URL;
+type FetchLike = typeof fetch;
+
+type SendJobCreatedWebhookOptions = {
+  fetchImpl?: FetchLike;
+  webhookUrl?: string;
+  webhookSecret?: string;
+  port?: string;
+  retries?: number;
+  retryDelayMs?: number;
+};
+
+const readNonNegativeInt = (value: unknown, fallback: number): number => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.max(0, Math.trunc(parsed));
+};
+
+const readBoolFlag = (
+  env: Record<string, string | undefined>,
+  name: string,
+  fallback: boolean,
+): boolean => {
+  const value = env[name];
+  if (value === undefined) return fallback;
+  return ["1", "true", "yes", "on"].includes(value.toLowerCase());
+};
+
+type StoredJobDeliveryState = {
+  sent_discord?: boolean;
+  sent_whatsapp?: boolean;
+};
+
+export const shouldRetryStoredJobDelivery = (
+  job: StoredJobDeliveryState,
+  env: Record<string, string | undefined> = process.env,
+): boolean => {
+  const discordEnabled = readBoolFlag(env, "DISCORD_ENABLED", true);
+  const whatsappEnabled = readBoolFlag(env, "WHATSAPP_ENABLED", false);
+
+  return (discordEnabled && job.sent_discord === false) ||
+    (whatsappEnabled && job.sent_whatsapp === false);
+};
+
+const storedJobToDTO = (doc: Record<string, any>): JobDTO | null => {
+  if (!doc.title || !doc.company || !doc.url || !doc.source) return null;
+
+  return {
+    source: doc.source,
+    externalId: doc.externalId,
+    title: doc.title,
+    company: doc.company,
+    location: doc.location,
+    workMode: doc.workMode || "unknown",
+    seniority: doc.seniority || "unknown",
+    url: doc.url,
+    summary: doc.summary,
+    description: doc.description,
+    stack: Array.isArray(doc.stack) ? doc.stack : [],
+    salaryText: doc.salaryText,
+    salaryMin: doc.salaryMin,
+    salaryMax: doc.salaryMax,
+    language: doc.language,
+    country: doc.country,
+    isInternational: doc.isInternational,
+    publishedAt: doc.publishedAt,
+    scrapedAt: doc.scrapedAt || doc.createdAt || new Date(),
+  };
+};
+
+const resolveLocalWebhookUrl = (webhookUrl: string, port: string | undefined): string => {
+  if (!webhookUrl.includes("localhost:") && !webhookUrl.includes("127.0.0.1:")) {
+    return webhookUrl;
+  }
+
+  return webhookUrl.replace(/:\d+/, `:${port || 3000}`);
+};
+
+const sleepRetry = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+const shouldAbortWebhookRetry = (status: number): boolean =>
+  (status >= 200 && status < 300) ||
+  status >= 400 && status < 500 && status !== 408 && status !== 429;
+
+export const sendJobCreatedWebhook = async (
+  job: JobDTO,
+  options: SendJobCreatedWebhookOptions = {},
+): Promise<boolean> => {
+  let webhookUrl = options.webhookUrl ?? process.env.WEBHOOK_URL;
   if (!webhookUrl) return false;
 
-  // Render/PaaS dinâmicos injetam a variável PORT. 
-  // Substitui a porta hardcoded pela porta real em que o bot está rodando
-  if (webhookUrl.includes("localhost:") || webhookUrl.includes("127.0.0.1:")) {
-    webhookUrl = webhookUrl.replace(/:\d+/, `:${process.env.PORT || 3000}`);
-  }
+  webhookUrl = resolveLocalWebhookUrl(webhookUrl, options.port ?? process.env.PORT);
 
   const headers: Record<string, string> = {
     "content-type": "application/json"
   };
 
-  if (process.env.WEBHOOK_SECRET) {
-    headers["x-webhook-secret"] = process.env.WEBHOOK_SECRET;
+  const webhookSecret = options.webhookSecret ?? process.env.WEBHOOK_SECRET;
+  if (webhookSecret) {
+    headers["x-webhook-secret"] = webhookSecret;
   }
 
-  const response = await fetch(webhookUrl, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(createJobCreatedEvent(job))
-  });
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const retries = options.retries ?? readNonNegativeInt(process.env.WEBHOOK_RETRIES, 6);
+  const retryDelayMs = options.retryDelayMs ?? readNonNegativeInt(process.env.WEBHOOK_RETRY_DELAY_MS, 1000);
+  let lastError: unknown;
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(`webhook failed (${response.status}): ${body}`);
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const response = await fetchImpl(webhookUrl, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(createJobCreatedEvent(job))
+      });
+
+      if (response.status === 200) {
+        return true;
+      }
+
+      const body = await response.text().catch(() => "");
+      lastError = new Error(`webhook failed (${response.status}): ${body}`);
+
+      if (shouldAbortWebhookRetry(response.status)) throw lastError;
+    } catch (error) {
+      lastError = error;
+      if (error instanceof Error && /^webhook failed \((2|4)/.test(error.message)) {
+        throw error;
+      }
+    }
+
+    if (attempt < retries && retryDelayMs > 0) {
+      await sleepRetry(retryDelayMs);
+    }
   }
 
-  return true;
+  throw lastError instanceof Error ? lastError : new Error(String(lastError));
 };
 
 let pendingWebhookJobs: JobDTO[] = [];
@@ -110,7 +215,30 @@ export const runCycle = async (): Promise<void> => {
   
   // Conecta ao MongoDB para obter vagas existentes
   await connectDatabase();
-  const existingDbJobs = await VagaModel.find({}, { url: 1, externalId: 1, source: 1, createdAt: 1 }).lean();
+  const existingDbJobs = await VagaModel.find({}, {
+    url: 1,
+    externalId: 1,
+    source: 1,
+    title: 1,
+    company: 1,
+    summary: 1,
+    description: 1,
+    location: 1,
+    workMode: 1,
+    seniority: 1,
+    stack: 1,
+    salaryText: 1,
+    salaryMin: 1,
+    salaryMax: 1,
+    language: 1,
+    country: 1,
+    isInternational: 1,
+    publishedAt: 1,
+    scrapedAt: 1,
+    createdAt: 1,
+    sent_discord: 1,
+    sent_whatsapp: 1,
+  }).lean();
   
   // Otimiza o since baseado na vaga mais recente no banco
   if (existingDbJobs.length > 0) {
@@ -131,6 +259,11 @@ export const runCycle = async (): Promise<void> => {
       addJobKeys(existingKeys, { url: doc.url as string, externalId: doc.externalId as string, source: doc.source as any });
     }
   }
+
+  const retryExistingJobs = existingDbJobs
+    .filter((job) => shouldRetryStoredJobDelivery(job))
+    .map((job) => storedJobToDTO(job))
+    .filter((job): job is JobDTO => Boolean(job));
 
   const remotarSourceJobs = sources.includes("remotar")
     ? await fetchRemotarJobs({
@@ -178,7 +311,7 @@ export const runCycle = async (): Promise<void> => {
   }
   
   const newJobs = fetchedJobs.filter((job) => !hasAnyJobKey(existingKeys, job));
-  const queuedJobs = dedupeJobs([...pendingWebhookJobs, ...newJobs]);
+  const queuedJobs = dedupeJobs([...pendingWebhookJobs, ...retryExistingJobs, ...newJobs]);
 
   let webhookSent = 0;
   let webhookFailed = 0;
@@ -237,6 +370,9 @@ export const runCycle = async (): Promise<void> => {
   console.log(`   🆕 Novas: ${newJobs.length}`);
   if (process.env.WEBHOOK_URL) {
     console.log(`   📡 Webhook: ${webhookSent} enviados, ${webhookFailed} falhas, ${pendingAfterRun.length} pendentes (de ${jobsToNotify.length} tentados)`);
+    if (retryExistingJobs.length > 0) {
+      console.log(`   🔁 Retentativas do banco: ${retryExistingJobs.length}`);
+    }
     if (!canSendWebhooksNow) {
       console.log(`   🔕 Janela silenciosa ativa: segurando ${webhookHeld} vagas para enviar depois`);
     }
