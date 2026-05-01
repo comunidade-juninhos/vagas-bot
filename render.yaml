@@ -1,10 +1,10 @@
 services:
   - type: web
-    name: vagas-bot-bots
+    name: vagas-bot
     runtime: node
     plan: free
     buildCommand: npm install
-    startCommand: npm run start
+    startCommand: npx concurrently -n "BOTS,SCRAPER" -c "blue,green" "npm run start" "npm run worker"
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -27,29 +27,17 @@ services:
         sync: false
       - key: DISCORD_CHANNEL_ID
         sync: false
-
-  - type: cron
-    name: vagas-bot-worker
-    runtime: node
-    plan: free
-    schedule: "*/15 * * * *"
-    buildCommand: npm install
-    startCommand: npm run worker:once
-    envVars:
-      - key: NODE_ENV
-        value: production
+      # Variáveis do Scraper que rodará junto com o Bot
       - key: WEBHOOK_URL
-        sync: false
-      - key: WEBHOOK_SECRET
-        sync: false
+        value: http://localhost:3000/webhooks/jobs
       - key: JOB_SOURCES
         value: meupadrinho,remotar
       - key: MEUPADRINHO_MAX_PAGES
-        value: "5"
+        value: "10"
       - key: REMOTAR_MAX_PAGES
-        value: "5"
+        value: "10"
       - key: GUPY_MAX_PAGES_PER_KEYWORD
-        value: "5"
+        value: "3"
       - key: WEBHOOK_MAX_JOBS_PER_RUN
         value: "100"
       - key: WEBHOOK_DELAY_MS
