@@ -72,3 +72,20 @@ O projeto já contém um arquivo `render.yaml` otimizado. No painel do Render.co
 
 - Um **Web Service** para a API e o Bot do WhatsApp/Discord.
 - Um **Cron Job** que roda o Scraper automaticamente a cada 2 horas buscando novas vagas.
+
+## 👥 Contribuições
+
+Projeto desenvolvido em colaboração com divisão de responsabilidades:
+
+- Tayron Silva — Bots  
+  - Integração com WhatsApp (Baileys) e Discord  
+  - Distribuição automatizada de vagas  
+  - Desenvolvimento direto do bot
+
+- danitsdev — Scraping e deduplicação  
+  - Coleta de vagas de múltiplas fontes  
+  - Processamento e filtragem de dados duplicados  
+
+- YuukoDev — Backend e camada de dados  
+  - Modelagem do banco de dados (MongoDB)  
+  - Desenvolvimento da API REST
