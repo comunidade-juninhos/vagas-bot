@@ -8,7 +8,9 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
+    "rootDir": ".",
     "outDir": "dist"
   },
-  "include": ["apps/**/*.ts", "packages/**/*.ts"]
+  "include": ["apps/**/*.ts", "packages/**/*.ts", "src/**/*.ts"],
+  "exclude": ["**/*.test.ts"]
 }

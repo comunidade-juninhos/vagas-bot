@@ -18,16 +18,23 @@ const dateLike = z.union([z.string(), z.date()]).transform((value, context) => {
 });
 
 const jobSchema = z.object({
-  source: z.enum(["linkedin", "indeed", "gupy", "remotar", "meupadrinho"]),
+  source: z.enum(["linkedin", "indeed", "gupy", "remotar", "meupadrinho", "greenhouse", "lever", "company-site", "unknown"]),
   externalId: z.string().optional(),
   title: z.string().min(1),
   company: z.string().min(1),
   location: z.string().optional(),
   workMode: z.enum(["remote", "hybrid", "onsite", "unknown"]),
-  seniority: z.enum(["intern", "junior", "mid", "senior", "unknown"]),
+  seniority: z.enum(["intern", "junior", "mid", "senior", "specialist", "lead", "unknown"]),
   url: z.string().url(),
+  summary: z.string().optional(),
   description: z.string().optional(),
   stack: z.array(z.string()).default([]),
+  salaryText: z.string().nullable().optional(),
+  salaryMin: z.number().optional(),
+  salaryMax: z.number().optional(),
+  language: z.enum(["pt", "en", "es", "fr", "de", "it", "unknown"]).optional(),
+  country: z.string().optional(),
+  isInternational: z.boolean().optional(),
   publishedAt: dateLike.optional(),
   scrapedAt: dateLike
 });

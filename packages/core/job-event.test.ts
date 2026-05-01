@@ -45,6 +45,34 @@ describe("job webhook events", () => {
     expect(event.data.job.scrapedAt).toBeInstanceOf(Date);
   });
 
+  it("accepts enriched notification fields while keeping old source payloads compatible", () => {
+    const event = parseJobCreatedEvent({
+      event: "jobs.created",
+      data: {
+        job: {
+          source: "meupadrinho",
+          title: "Cyber Security Engineer III",
+          company: "Bradesco",
+          location: "São Paulo, SP",
+          workMode: "hybrid",
+          seniority: "mid",
+          url: "https://bradesco.gupy.io/jobs/123",
+          description: "Atuação em CSIRT.",
+          summary: "Atuação em CSIRT.",
+          stack: ["cybersecurity", "siem"],
+          salaryText: null,
+          language: "pt",
+          isInternational: false,
+          scrapedAt: "2026-04-30T12:00:00.000Z"
+        }
+      }
+    });
+
+    expect(event.data.job.source).toBe("meupadrinho");
+    expect(event.data.job.summary).toBe("Atuação em CSIRT.");
+    expect(event.data.job.language).toBe("pt");
+  });
+
   it("rejects payloads that are not jobs.created events", () => {
     expect(() =>
       parseJobCreatedEvent({

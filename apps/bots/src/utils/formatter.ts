@@ -1,37 +1,51 @@
-const STACK_LABELS = [
+import { buildNotificationJob } from "../../../../packages/core/notification.js";
+import type { JobDTO, JobLanguage } from "../../../../packages/core/types.js";
+
+const STACK_LABELS: Array<[string, string, RegExp]> = [
   ['react', 'React', /\breact\b/i],
+  ['angular', 'Angular', /\bangular\b/i],
+  ['vue', 'Vue', /\bvue\.?js?\b|\bvuejs\b/i],
+  ['nextjs', 'Next.js', /\bnext\.?js\b/i],
   ['node', 'Node.js', /\bnode(?:\.js)?\b/i],
   ['python', 'Python', /\bpython\b/i],
   ['java', 'Java', /\bjava\b|spring boot|\bspring\b/i],
   ['javascript', 'JavaScript', /\bjavascript\b|\bjs\b/i],
   ['typescript', 'TypeScript', /\btypescript\b|\bts\b/i],
+  ['kotlin', 'Kotlin', /\bkotlin\b/i],
+  ['swift', 'Swift', /\bswift\b/i],
+  ['flutter', 'Flutter', /\bflutter\b|\bdart\b/i],
+  ['csharp', 'C#', /\bc#\b/i],
+  ['dotnet', '.NET', /\.net|dotnet/i],
+  ['php', 'PHP', /\bphp\b|laravel/i],
+  ['ruby', 'Ruby', /\bruby\b|rails/i],
+  ['go', 'Go', /\bgolang\b|\bgo\b/i],
+  ['rust', 'Rust', /\brust\b/i],
   ['aws', 'AWS', /\baws\b/i],
   ['azure', 'Azure', /\bazure\b/i],
   ['gcp', 'GCP', /\bgcp\b|google cloud/i],
   ['cloud', 'Cloud', /\bcloud\b|aws|azure|gcp/i],
   ['docker', 'Docker', /\bdocker\b/i],
   ['kubernetes', 'Kubernetes', /\bkubernetes\b|\bk8s\b/i],
+  ['terraform', 'Terraform', /\bterraform\b|\biac\b/i],
   ['sql', 'SQL', /\bsql\b|postgres|mysql|oracle/i],
-  ['api', 'APIs', /\bapis?\b|desenvolvimento de apis?/i],
+  ['nosql', 'NoSQL', /\bnosql\b|mongodb|\bmongo\b|dynamodb|cassandra/i],
+  ['redis', 'Redis', /\bredis\b/i],
+  ['kafka', 'Kafka', /\bkafka\b|rabbitmq/i],
+  ['graphql', 'GraphQL', /\bgraphql\b/i],
+  ['api', 'APIs', /\bapis?\b|desenvolvimento de apis?|\brest\b/i],
   ['git', 'Git', /\bgit\b/i],
-  ['asyncio', 'Asyncio', /\basyncio\b|ass[ií]ncrono|concorrente/i],
+  ['cypress', 'Cypress', /\bcypress\b/i],
+  ['selenium', 'Selenium', /\bselenium\b/i],
   ['testing', 'Testing', /\btesting\b|testes?|orientado a testes/i],
   ['web-scraping', 'Web Scraping', /web scraping|scraping/i],
-  ['nosql', 'NoSQL', /\bnosql\b|mongodb/i],
-  ['php', 'PHP', /\bphp\b|laravel/i],
-  ['ruby', 'Ruby', /\bruby\b|rails/i],
-  ['go', 'Go', /\bgolang\b|\bgo\b/i],
-  ['flutter', 'Flutter', /\bflutter\b/i],
-  ['angular', 'Angular', /\bangular\b/i],
-  ['vue', 'Vue', /\bvue\b/i],
-  ['csharp', 'C#', /\bc#\b/i],
-  ['dotnet', '.NET', /\.net|dotnet/i],
-  ['kotlin', 'Kotlin', /\bkotlin\b/i],
-  ['swift', 'Swift', /\bswift\b/i],
   ['fullstack', 'Fullstack', /full[- ]?stack|fullstack/i],
   ['frontend', 'Frontend', /front[- ]?end|frontend/i],
   ['backend', 'Backend', /back[- ]?end|backend/i],
   ['data', 'Dados', /\bdados\b|\bdata\b|analytics|data science|engenharia de dados/i],
+  ['bi', 'BI', /\bbi\b|business intelligence|power ?bi/i],
+  ['ai', 'AI/ML', /\bia\b|\bai\b|intelig[eê]ncia artificial|machine learning|\bml\b|\bllm\b|\bgpt\b/i],
+  ['elasticsearch', 'Elasticsearch', /elasticsearch|\belastic\b|\belk\b/i],
+  ['figma', 'Figma', /\bfigma\b/i],
   ['ux', 'UX', /\bux\b|ux\/ui|ui\/ux|designer ux/i],
   ['ui', 'UI', /\bui\b|ux\/ui|ui\/ux|designer ui/i],
   ['devops', 'DevOps', /\bdevops\b/i],
@@ -58,7 +72,7 @@ const STACK_ALIASES = new Map(
   ])
 );
 
-const LANGUAGE_HINTS = [
+const LANGUAGE_HINTS: Array<[JobLanguage, RegExp]> = [
   ['pt', /\b(você|voce|gradua[cç][aã]o|ci[eê]ncia|seguran[cç]a|informa[cç][aã]o|experi[eê]ncia|conhecimento|requisitos e qualifica[cç][oõ]es|trabalho|remoto|h[ií]brido|benef[ií]cios|ingl[eê]s t[eé]cnico)\b/i],
   ['en', /\b(the|and|with|remote|requirements|experience|skills|team|software)\b/i],
   ['es', /\b(desarrollador|desarrolladora|equipo|conocimientos|experiencia comprobada|trabajo remoto|remoto desde|ser[aá]s|usuarios|aplicaciones)\b/i],
@@ -67,7 +81,7 @@ const LANGUAGE_HINTS = [
   ['it', /\b(il|la|con|requisiti|esperienza|squadra|software)\b/i],
 ];
 
-function detectLanguage(text) {
+function detectLanguage(text: string): JobLanguage {
   if (!text) return 'pt';
 
   for (const [lang, pattern] of LANGUAGE_HINTS) {
@@ -77,7 +91,7 @@ function detectLanguage(text) {
   return 'pt';
 }
 
-export function cleanText(value) {
+export function cleanText(value: unknown): string {
   return String(value ?? '')
     .replace(/\\n/g, ' ')
     .replace(/<[^>]+>/g, ' ')
@@ -90,7 +104,7 @@ export function cleanText(value) {
     .trim();
 }
 
-export function summarizeText(value, maxLength = 320) {
+export function summarizeText(value: unknown, maxLength = 320): string {
   const text = cleanText(value);
   if (!text || text.length <= maxLength) return text;
 
@@ -103,7 +117,7 @@ export function summarizeText(value, maxLength = 320) {
 }
 
 // função que varre o texto e extrai as tecnologias encontradas
-export function extractStacks(description, existingStacks = []) {
+export function extractStacks(description: unknown, existingStacks: string[] = []): string[] {
   const text = cleanText(description);
   const found = new Map();
 
@@ -127,19 +141,19 @@ export function extractStacks(description, existingStacks = []) {
 }
 
 // detecta idioma com heurística leve e mantém o texto original sem chamada externa
-export async function detectAndTranslate(text) {
+export async function detectAndTranslate(text: string): Promise<{ translated: string; detectedLang: JobLanguage }> {
   if (!text) return { translated: '', detectedLang: 'pt' };
   return { translated: text, detectedLang: detectLanguage(text) };
 }
 
 // mantida para compatibilidade com outros módulos que a usam
-export async function translateText(text) {
+export async function translateText(text: string): Promise<string> {
   const { translated } = await detectAndTranslate(text);
   return translated;
 }
 
 // tenta extrair os requisitos (bullet points) de dentro da descrição da vaga
-export function extractRequirements(description) {
+export function extractRequirements(description: unknown): string | null {
   if (!description) return null;
   const normalized = String(description)
     .replace(/\\n/g, '\n')
@@ -204,7 +218,7 @@ export function extractRequirements(description) {
 }
 
 // limpa caracteres estranhos da localização (comum em alguns scrapers)
-export function cleanLocation(location) {
+export function cleanLocation(location: unknown): string {
   if (!location) return '';
   let cleaned = cleanText(location).replace(/\{.*?\}/g, '').trim();
   cleaned = cleaned.replace(/,\s*$/, '').trim();
@@ -212,7 +226,7 @@ export function cleanLocation(location) {
 }
 
 // mapa de bandeiras e contexto de origem por idioma
-const LANG_INFO = {
+const LANG_INFO: Partial<Record<JobLanguage | string, { flag: string; label: string | null }>> = {
   'pt': { flag: '🇧🇷', label: null },                      // português: sem label (vaga local)
   'en': { flag: '🇺🇸', label: '🇺🇸 vaga internacional (eua/uk)' },
   'es': { flag: '🇪🇸', label: '🇪🇸 vaga internacional (esp/latam)' },
@@ -226,12 +240,12 @@ const LANG_INFO = {
 };
 
 // retorna a bandeira e o label de origem baseado no idioma detectado
-function getLangInfo(lang) {
+function getLangInfo(lang: string) {
   return LANG_INFO[lang?.toLowerCase()] || { flag: '🌐', label: '🌐 vaga internacional' };
 }
 
 // tenta deduzir a senioridade se ela vier vazia ou desconhecida
-export function detectSeniority(job) {
+export function detectSeniority(job: Pick<JobDTO, "title" | "description" | "seniority">): string {
   const text = (job.title + ' ' + (job.description || '')).toLowerCase();
   
   // se já tiver uma senioridade válida, usa ela
@@ -249,74 +263,55 @@ export function detectSeniority(job) {
   return 'Não Informado'; 
 }
 
-// função principal que monta a mensagem bonita para o whatsapp/discord
-export async function formatJobMessage(job) {
-  const stacks = extractStacks(job.description, job.stack || []);
-  
-  // emojis e textos para o modelo de trabalho
-  const workModeEmoji = job.workMode === 'remote' ? '🌍' : (job.workMode === 'hybrid' ? '🏠' : '🏢');
-  const workModeLabels = { remote: 'Remoto', hybrid: 'Híbrido', onsite: 'Presencial' };
-  const workModeText = workModeLabels[job.workMode] || 'não informado';
-  
-  const cleanedLocation = cleanLocation(job.location);
-  const locationSuffix = (job.workMode !== 'remote' && cleanedLocation) ? ` (${cleanedLocation})` : '';
+// função principal que monta a mensagem bonita para o whatsapp
+export async function formatJobMessage(job: JobDTO): Promise<string> {
+  const notification = buildNotificationJob(job);
+  const lines = [];
 
-  const sourceEmoji = job.source === 'gupy' ? '💚' : '💙';
-
-  // detecta o idioma e traduz o resumo
-  const rawSummary = job.description ? summarizeText(job.description, 260) : '';
-  const { translated: translatedSummary, detectedLang } = rawSummary
-    ? await detectAndTranslate(rawSummary)
-    : { translated: 'confira os detalhes no link.', detectedLang: 'pt' };
-
-  // usa o idioma detectado para mostrar a origem da vaga
-  const langInfo = getLangInfo(detectedLang);
-
-  // traduz os requisitos (se existirem)
-  const rawRequirements = extractRequirements(job.description);
-  const translatedRequirements = rawRequirements ? await translateText(rawRequirements) : null;
-
-  // linha de tecnologias formatada
-  const stackLine = stacks.length > 0 
-    ? `\n🛠️ *techs:* ${stacks.map(s => `_${s}_`).join(', ')}` 
-    : `\n🔍 *requisitos:* ver detalhes no link`;
-
-  const seniorityText = detectSeniority(job);
-  const seniorityLine = seniorityText ? ` | 🎓 *${seniorityText.toUpperCase()}*` : '';
-
-  // label de origem para vagas internacionais (ex: 🇺🇸 vaga internacional (eua/uk))
-  const originLine = langInfo.label ? `\n🌐 *${langInfo.label}*` : '';
-
-  // montagem final da string da mensagem
-  let message = `
-${sourceEmoji} *VAGA DETECTADA* ${langInfo.flag}
-
-🚀 *${job.title.toUpperCase()}*
-🏢 *${job.company}*
-━━━━━━━━━━━━━━━━━━━━━
-
-${workModeEmoji} *modelo:* ${workModeText}${locationSuffix}${seniorityLine}${stackLine}${originLine}
-
-📝 *resumo:*
-${translatedSummary}
-`;
-
-
-
-  if (translatedRequirements) {
-    message += `\n📋 *principais requisitos:*
-${translatedRequirements}\n`;
+  if (notification.internationalLabel) {
+    lines.push(`🌎 *VAGA INTERNACIONAL*`, '');
   }
 
-  message += `
-🔗 *link para inscrição:*
-${job.url}
+  lines.push(`🚀 *${notification.title}*`, '');
+  lines.push(`🏢 *Empresa:* ${notification.company}`);
 
-━━━━━━━━━━━━━━━━━━━━━
-_🤖 vagas-bot via ${job.source.toUpperCase()}_
-`;
+  if (notification.locationLabel) {
+    lines.push(`📍 *Local:* ${notification.locationLabel}`);
+  }
 
-  return message.trim();
+  if (notification.workModeLabel) {
+    lines.push(`${notification.workModeEmoji} *Modelo:* ${notification.workModeLabel}`);
+  }
+
+  if (notification.seniorityLabel) {
+    lines.push(`${notification.seniorityEmoji} *Nível:* ${notification.seniorityLabel}`);
+  }
+
+  if (notification.salaryLabel) {
+    lines.push(`💰 *Salário:* ${notification.salaryLabel}`);
+  }
+
+  if (notification.summary) {
+    lines.push('', `📝 *Resumo:*`, notification.summary);
+  }
+
+  if (notification.stackLabels.length > 0) {
+    lines.push('', `🛠️ *Tecnologias:*`, notification.stackLabels.join(', '));
+  }
+
+  if (notification.requirementBullets.length > 0) {
+    const limitedBullets = notification.requirementBullets.slice(0, 4);
+    lines.push('', `📋 *Requisitos:*`, ...limitedBullets.map((item) => `• ${summarizeText(item, 120)}`));
+  }
+
+  const cleanUrl = notification.url.replace(/[?&]jobBoardSource=[^&]+/i, '');
+  lines.push('', `🔗 *Candidatar-se:*`, cleanUrl);
+
+  const footerParts = [`Fonte: ${notification.sourceLabel}`];
+  if (notification.publishedAtLabel) {
+    footerParts.push(`Publicada em ${notification.publishedAtLabel}`);
+  }
+  lines.push('', `_${footerParts.join(' • ')}_`);
+
+  return lines.join('\n').trim();
 }
-
-

@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import "dotenv/config";
 
-let connectionPromise = null;
+let connectionPromise: Promise<typeof mongoose.connection> | null = null;
 
 const MONGO_OPTIONS = {
   dbName: "vagas-bot",
@@ -20,9 +20,9 @@ const MONGO_OPTIONS = {
   bufferCommands: false,
 };
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-export async function connectDatabase({ retries = 5, delayMs = 2000 } = {}) {
+export async function connectDatabase({ retries = 5, delayMs = 2000 }: { retries?: number; delayMs?: number } = {}) {
   if (mongoose.connection.readyState === 1) {
     return mongoose.connection;
   }
@@ -46,8 +46,8 @@ export async function connectDatabase({ retries = 5, delayMs = 2000 } = {}) {
   }
 }
 
-async function connectWithRetry(uri, retries, delayMs) {
-  let lastError;
+async function connectWithRetry(uri: string, retries: number, delayMs: number) {
+  let lastError: unknown;
 
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
@@ -63,7 +63,7 @@ async function connectWithRetry(uri, retries, delayMs) {
 
       console.error(
         `❌ Falha ao conectar no MongoDB (${attempt}/${retries}):`,
-        error.message,
+        error instanceof Error ? error.message : String(error),
       );
 
       if (attempt < retries) {
@@ -90,7 +90,7 @@ function setupMongoEvents() {
     console.log("🔁 Mongo reconectado");
   });
 
-  mongoose.connection.on("error", (error) => {
+  mongoose.connection.on("error", (error: Error) => {
     console.error("❌ Erro na conexão Mongo:", error.message);
   });
 }

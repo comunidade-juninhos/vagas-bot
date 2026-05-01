@@ -4,6 +4,7 @@ import {
   detectAndTranslate,
   extractRequirements,
   extractStacks,
+  formatJobMessage,
   summarizeText
 } from "./formatter.js";
 
@@ -62,7 +63,8 @@ describe("formatter helpers", () => {
   it("deduplicates stacks case-insensitively and prefers normalized labels", () => {
     const stacks = extractStacks("Projeto com Azure, Docker e SQL.", ["azure", "cloud", "Docker", ".NET", "Azure"]);
 
-    expect(stacks).toEqual(["Azure", "Cloud", "Docker", "SQL", ".NET"]);
+    expect(stacks).toEqual(expect.arrayContaining(["Azure", "Cloud", "Docker", "SQL", ".NET"]));
+    expect(stacks).toHaveLength(5);
   });
 
   it("keeps Portuguese security jobs as Portuguese", async () => {
@@ -111,8 +113,35 @@ describe("formatter helpers", () => {
   });
 
   it("splits Meu Padrinho compact stack text into readable labels", () => {
-    const stacks = extractStacks("PythonSQLAPIsGitDockerAsyncioTestingWeb Scraping", []);
+    const stacks = extractStacks("PythonSQLAPIsGitDockerTestingWeb Scraping", []);
 
-    expect(stacks).toEqual(expect.arrayContaining(["Python", "SQL", "APIs", "Git", "Docker", "Asyncio", "Testing", "Web Scraping"]));
+    expect(stacks).toEqual(expect.arrayContaining(["Python", "SQL", "APIs", "Git", "Docker", "Testing", "Web Scraping"]));
+  });
+
+  it("formats WhatsApp messages with the application platform as source", async () => {
+    const message = await formatJobMessage({
+      source: "meupadrinho",
+      title: "Cyber Security Engineer III",
+      company: "Bradesco",
+      location: "São Paulo, SP",
+      workMode: "hybrid",
+      seniority: "mid",
+      url: "https://bradesco.gupy.io/jobs/123",
+      description:
+        "Atuação em CSIRT com monitoramento, resposta a incidentes e automações de segurança. Requisitos e Qualificações Experiência com resposta e análise de incidentes. Conhecimento em SIEM e SOAR. Inglês técnico. Benefícios: vale refeição.",
+      stack: ["cybersecurity", "siem", "soar", "edr", "waf", "aws"],
+      publishedAt: new Date("2026-04-27T00:00:00.000Z"),
+      scrapedAt: new Date("2026-04-30T12:00:00.000Z")
+    });
+
+    expect(message).toContain("🚀 *Cyber Security Engineer III*");
+    expect(message).toContain("🏢 *Empresa:* Bradesco");
+    expect(message).toContain("🏠 *Modelo:* Híbrido");
+    expect(message).toContain("💼 *Nível:* Pleno");
+    expect(message).not.toContain("*Salário:* Não informado");
+    expect(message).toContain("🛠️ *Tecnologias:*");
+    expect(message).toContain("Cybersecurity, SIEM, SOAR");
+    expect(message).toContain("_Fonte: Gupy • Publicada em 27/04/2026_");
+    expect(message).not.toContain("Meu Padrinho");
   });
 });

@@ -22,7 +22,7 @@ describe("normalizeRemotarJob", () => {
     const job = normalizeRemotarJob(baseJob);
 
     expect(job).toMatchObject({
-      source: "remotar",
+      source: "company-site",
       externalId: "123",
       title: "Desenvolvedor Front-end React TypeScript Júnior",
       company: "Acme",

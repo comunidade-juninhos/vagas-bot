@@ -1,4 +1,4 @@
-const envFlag = (name, fallback = true) => {
+const envFlag = (name: string, fallback = true) => {
   const value = process.env[name];
   if (value === undefined) return fallback;
   return ["1", "true", "yes", "on"].includes(value.toLowerCase());

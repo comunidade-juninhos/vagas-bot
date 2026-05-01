@@ -1,14 +1,42 @@
-const channelDisabled = (channel) => !channel?.enabled;
+import type { JobDTO } from "../../../../packages/core/types.js";
 
-const channelReady = (channel, required = []) =>
+type DeliveryStatus = "pending" | "sent" | "already_sent" | "disabled" | "not_configured" | "failed" | "skipped";
+type DeliveryMap = Record<"discord" | "whatsapp", DeliveryStatus>;
+
+type DeliveryChannel = {
+  [key: string]: unknown;
+  enabled?: boolean;
+  client?: unknown;
+  channelId?: string;
+  groupId?: string;
+  send?: (...args: any[]) => Promise<boolean>;
+};
+
+type DeliveryRepository = {
+  createVaga: (job: JobDTO) => Promise<{ created: boolean; vaga: any }>;
+  updateVagaStatus: (id: unknown, update: Record<string, boolean>) => Promise<unknown>;
+};
+
+const channelDisabled = (channel?: DeliveryChannel) => !channel?.enabled;
+
+const channelReady = (channel: DeliveryChannel | undefined, required: string[] = []) =>
   required.every((key) => Boolean(channel?.[key])) && typeof channel?.send === "function";
 
-const allEnabledChannelsDone = (delivery) =>
+const allEnabledChannelsDone = (delivery: DeliveryMap) =>
   Object.values(delivery).every((status) =>
     ["sent", "already_sent", "disabled", "not_configured"].includes(status)
   );
 
-export async function deliverJobCreated(job, { repository, channels }) {
+export async function deliverJobCreated(
+  job: JobDTO,
+  {
+    repository,
+    channels,
+  }: {
+    repository: DeliveryRepository;
+    channels: Record<"discord" | "whatsapp", DeliveryChannel>;
+  },
+) {
   const result = await repository.createVaga(job);
   const vaga = result.vaga;
 
@@ -23,7 +51,7 @@ export async function deliverJobCreated(job, { repository, channels }) {
     };
   }
 
-  const delivery = {
+  const delivery: DeliveryMap = {
     discord: channelDisabled(channels.discord) ? "disabled" : "pending",
     whatsapp: channelDisabled(channels.whatsapp) ? "disabled" : "pending"
   };
@@ -48,7 +76,7 @@ export async function deliverJobCreated(job, { repository, channels }) {
     if (!channelReady(channels.discord, ["client", "channelId"])) {
       delivery.discord = "not_configured";
     } else {
-      const success = await channels.discord.send(
+      const success = await channels.discord.send!(
         channels.discord.client,
         job,
         channels.discord.channelId
@@ -65,7 +93,7 @@ export async function deliverJobCreated(job, { repository, channels }) {
     if (!channelReady(channels.whatsapp, ["groupId"])) {
       delivery.whatsapp = "not_configured";
     } else {
-      const success = await channels.whatsapp.send(job, channels.whatsapp.groupId);
+      const success = await channels.whatsapp.send!(job, channels.whatsapp.groupId);
       delivery.whatsapp = success ? "sent" : "failed";
 
       if (success) {

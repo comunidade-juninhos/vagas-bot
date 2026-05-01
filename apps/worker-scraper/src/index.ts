@@ -1,20 +1,48 @@
 import "dotenv/config";
-import { mkdir, writeFile, readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname } from "node:path";
+import { pathToFileURL } from "node:url";
 import { dedupeJobs } from "../../../packages/core/dedupe.js";
 import { createJobCreatedEvent } from "../../../packages/core/job-event.js";
 import type { JobDTO } from "../../../packages/core/types.js";
 import { fetchGupyJobs, isTechGupyJob, normalizeGupyJob } from "../../../packages/sources/gupy/index.js";
 import { fetchMeuPadrinhoJobs, normalizeMeuPadrinhoJob } from "../../../packages/sources/meupadrinho/index.js";
 import { fetchRemotarJobs, isTechRemotarJob, normalizeRemotarJob } from "../../../packages/sources/remotar/index.js";
+import { isWithinNotificationWindow, readNotificationWindowConfig } from "./schedule.js";
+import { connectDatabase } from "#root/services/database.js";
+import VagaModel from "#root/models/vaga.js";
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
-const jobKey = (job: Pick<JobDTO, "source" | "externalId" | "url">): string =>
-  job.externalId ? `${job.source}:${job.externalId}` : job.url;
+const normalizedUrlKey = (value: string): string => {
+  try {
+    const url = new URL(value);
+    url.hash = "";
+    url.search = "";
+    return `${url.hostname.toLowerCase()}${url.pathname.replace(/\/$/, "")}`;
+  } catch {
+    return value;
+  }
+};
+
+const jobKeys = (job: Pick<JobDTO, "source" | "externalId" | "url">): string[] => {
+  const keys = [normalizedUrlKey(job.url)];
+  if (job.externalId) {
+    keys.push(`${job.source}:${job.externalId}`);
+  }
+  return keys;
+};
+
+const hasAnyJobKey = (seen: Set<string>, job: Pick<JobDTO, "source" | "externalId" | "url">): boolean =>
+  jobKeys(job).some((key) => seen.has(key));
+
+const addJobKeys = (seen: Set<string>, job: Pick<JobDTO, "source" | "externalId" | "url">): void => {
+  for (const key of jobKeys(job)) {
+    seen.add(key);
+  }
+};
 
 const parseSources = (): string[] =>
-  (process.env.JOB_SOURCES || "meupadrinho")
+  (process.env.JOB_SOURCES || "meupadrinho,remotar")
     .split(",")
     .map((source) => source.trim().toLowerCase())
     .filter(Boolean);
@@ -45,13 +73,19 @@ const sendJobCreatedWebhook = async (job: JobDTO): Promise<boolean> => {
   return true;
 };
 
-const runCycle = async (): Promise<void> => {
-  const sources = parseSources();
-  const maxPages = 1;
+let pendingWebhookJobs: JobDTO[] = [];
+
+export const runCycle = async (): Promise<void> => {
+  const allSources = parseSources();
+  // Alterna a fonte baseado no minuto atual (0, 15, 30, 45) para não sobrecarregar as APIs
+  const sourceIndex = Math.floor(new Date().getMinutes() / 15) % allSources.length;
+  const sources = [allSources[sourceIndex]];
+  
+  const maxPages = Number(process.env.REMOTAR_MAX_PAGES || 3);
   const search = "";
   const categoryIds: number[] | undefined = undefined;
   const tagIds: number[] | undefined = undefined;
-  const gupyMaxPages = 1;
+  const gupyMaxPages = Number(process.env.GUPY_MAX_PAGES_PER_KEYWORD || 1);
   const meuPadrinhoMaxPages = Number(process.env.MEUPADRINHO_MAX_PAGES || 3);
   const gupyKeywords = [
     "qa", "testes", "desenvolvedor", "desenvolvedora", "developer", "frontend", "backend", "fullstack", 
@@ -61,23 +95,36 @@ const runCycle = async (): Promise<void> => {
     "node", "react"
   ];
   const gupyWorkplaceTypes: string[] | undefined = undefined;
-  const outputFile = resolve("output/scraper/jobs.json");
-  const webhookLimit = Number(process.env.WEBHOOK_MAX_JOBS_PER_RUN || 10);
+  const webhookLimit = Number(process.env.WEBHOOK_MAX_JOBS_PER_RUN || 50);
   const webhookDelayMs = Number(process.env.WEBHOOK_DELAY_MS || 1000);
+  const notificationWindow = readNotificationWindowConfig();
+  const canSendWebhooksNow = isWithinNotificationWindow(new Date(), notificationWindow);
 
   let since: Date | undefined;
-  let existingJobs: JobDTO[] = [];
-  try {
-    const existingContent = await readFile(outputFile, "utf8");
-    const existingData = JSON.parse(existingContent);
-    if (existingData.generatedAt) {
-      since = new Date(existingData.generatedAt);
-      since.setHours(since.getHours() - 1);
+  
+  // Conecta ao MongoDB para obter vagas existentes
+  await connectDatabase();
+  const existingDbJobs = await VagaModel.find({}, { url: 1, externalId: 1, source: 1, createdAt: 1 }).lean();
+  
+  // Otimiza o since baseado na vaga mais recente no banco
+  if (existingDbJobs.length > 0) {
+    const mostRecent = existingDbJobs.reduce((latest, current) => {
+      if (!latest.createdAt) return current;
+      if (!current.createdAt) return latest;
+      return latest.createdAt > current.createdAt ? latest : current;
+    }, existingDbJobs[0]);
+    if (mostRecent.createdAt) {
+      since = new Date(mostRecent.createdAt);
+      since.setHours(since.getHours() - 2); // margem de segurança
     }
-    if (Array.isArray(existingData.jobs)) {
-      existingJobs = existingData.jobs;
+  }
+
+  const existingKeys = new Set<string>();
+  for (const doc of existingDbJobs) {
+    if (doc.url) {
+      addJobKeys(existingKeys, { url: doc.url as string, externalId: doc.externalId as string, source: doc.source as any });
     }
-  } catch {}
+  }
 
   const remotarSourceJobs = sources.includes("remotar")
     ? await fetchRemotarJobs({
@@ -102,7 +149,7 @@ const runCycle = async (): Promise<void> => {
   const meuPadrinhoSourceJobs = sources.includes("meupadrinho")
     ? await fetchMeuPadrinhoJobs({
         maxPages: Number.isFinite(meuPadrinhoMaxPages) ? meuPadrinhoMaxPages : 3,
-        since,
+        // não passar since para o meupadrinho por causa de fuso horário da API, o dedupe do worker lida com isso.
       })
     : [];
 
@@ -119,20 +166,32 @@ const runCycle = async (): Promise<void> => {
   const meuPadrinhoJobs = meuPadrinhoSourceJobs.map((sourceJob) => normalizeMeuPadrinhoJob(sourceJob.raw));
 
   const fetchedJobs = dedupeJobs([...meuPadrinhoJobs, ...remotarJobs, ...gupyJobs]);
-  const existingKeys = new Set(existingJobs.map(jobKey));
-  const newJobs = fetchedJobs.filter((job) => !existingKeys.has(jobKey(job)));
+  
+  for (const job of pendingWebhookJobs) {
+    addJobKeys(existingKeys, job);
+  }
+  
+  const newJobs = fetchedJobs.filter((job) => !hasAnyJobKey(existingKeys, job));
+  const queuedJobs = dedupeJobs([...pendingWebhookJobs, ...newJobs]);
 
   let webhookSent = 0;
   let webhookFailed = 0;
+  let webhookHeld = 0;
   const acceptedNewJobKeys = new Set<string>();
   const jobsToNotify = process.env.WEBHOOK_URL
-    ? newJobs.slice(0, Number.isFinite(webhookLimit) ? webhookLimit : 10)
+    ? canSendWebhooksNow
+      ? queuedJobs.slice(0, Number.isFinite(webhookLimit) ? webhookLimit : 50)
+      : []
     : [];
 
   if (!process.env.WEBHOOK_URL) {
     for (const job of newJobs) {
-      acceptedNewJobKeys.add(jobKey(job));
+      addJobKeys(acceptedNewJobKeys, job);
     }
+  }
+
+  if (process.env.WEBHOOK_URL && !canSendWebhooksNow) {
+    webhookHeld = queuedJobs.length;
   }
 
   for (const job of jobsToNotify) {
@@ -140,7 +199,7 @@ const runCycle = async (): Promise<void> => {
       const sent = await sendJobCreatedWebhook(job);
       if (sent) {
         webhookSent += 1;
-        acceptedNewJobKeys.add(jobKey(job));
+        addJobKeys(acceptedNewJobKeys, job);
       }
     } catch (error) {
       webhookFailed += 1;
@@ -159,41 +218,23 @@ const runCycle = async (): Promise<void> => {
     }
   }
 
-  const acceptedNewJobs = newJobs.filter((job) => acceptedNewJobKeys.has(jobKey(job)));
-  const normalizedJobs = dedupeJobs([...existingJobs, ...acceptedNewJobs]);
+  const pendingAfterRun = process.env.WEBHOOK_URL
+    ? queuedJobs.filter((job) => !hasAnyJobKey(acceptedNewJobKeys, job))
+    : [];
+    
+  pendingWebhookJobs = pendingAfterRun;
 
-  const output = {
-    generatedAt: new Date().toISOString(),
-    sources,
-    fetched: {
-      remotar: remotarSourceJobs.length,
-      meupadrinho: meuPadrinhoSourceJobs.length,
-      gupy: gupySourceJobs.length,
-    },
-    newJobs: newJobs.length,
-    webhook: {
-      configured: Boolean(process.env.WEBHOOK_URL),
-      attempted: jobsToNotify.length,
-      sent: webhookSent,
-      failed: webhookFailed,
-    },
-    matched: normalizedJobs.length,
-    jobs: normalizedJobs,
-  };
+  const fetchedTotal = remotarSourceJobs.length + meuPadrinhoSourceJobs.length + gupySourceJobs.length;
 
-  await mkdir(dirname(outputFile), { recursive: true });
-  await writeFile(outputFile, `${JSON.stringify(output, null, 2)}\n`, "utf8");
-
-  console.log(
-    JSON.stringify({
-      outputFile,
-      sources,
-      fetched: output.fetched,
-      newJobs: output.newJobs,
-      webhook: output.webhook,
-      matched: output.matched,
-    }),
-  );
+  console.log(`\n📊 === Resultado do Ciclo ===`);
+  console.log(`   📥 Capturados: ${fetchedTotal} vagas (meupadrinho: ${meuPadrinhoSourceJobs.length}, remotar: ${remotarSourceJobs.length}, gupy: ${gupySourceJobs.length})`);
+  console.log(`   🆕 Novas: ${newJobs.length}`);
+  if (process.env.WEBHOOK_URL) {
+    console.log(`   📡 Webhook: ${webhookSent} enviados, ${webhookFailed} falhas, ${pendingAfterRun.length} pendentes (de ${jobsToNotify.length} tentados)`);
+    if (!canSendWebhooksNow) {
+      console.log(`   🔕 Janela silenciosa ativa: segurando ${webhookHeld} vagas para enviar depois`);
+    }
+  }
 };
 
 const main = async (): Promise<void> => {
@@ -215,7 +256,11 @@ const main = async (): Promise<void> => {
   }
 };
 
-main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : error);
-  process.exitCode = 1;
-});
+const isMain = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
+
+if (isMain) {
+  main().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : error);
+    process.exitCode = 1;
+  });
+}

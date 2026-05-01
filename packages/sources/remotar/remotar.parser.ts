@@ -6,6 +6,7 @@ import {
   parseDate,
   stripHtml,
 } from "../../core/normalize-job.js";
+import { detectApplySourceFromUrl } from "../../core/source.js";
 import type { JobDTO } from "../../core/types.js";
 
 import { z } from "zod";
@@ -151,19 +152,21 @@ export const isTechRemotarJob = (job: RemotarJob): boolean => {
 export const normalizeRemotarJob = (job: RemotarJob): JobDTO => {
   const tags = getTags(job);
   const description = stripHtml(job.description ?? job.subtitle ?? "");
-  const stack = extractStack([job.title, tags.join(" ")]);
+  const stack = extractStack([job.title, tags.join(" "), description]);
   const publishedAt = parseDate(job.createdAt);
   const location = formatLocation(job.city, job.state, job.country?.name);
+  const tagText = tags.join(" ");
+  const url = job.externalLink ?? `https://remotar.com.br/jobs/${job.id}`;
 
   return {
-    source: "remotar",
+    source: detectApplySourceFromUrl(url),
     externalId: String(job.id),
     title: (job.title ?? "").trim(),
     company: (job.companyDisplayName ?? job.company?.name ?? "Empresa não informada").trim(),
     location,
-    workMode: detectWorkMode(`${job.type ?? ""} ${tags.join(" ")}`),
-    seniority: detectSeniority(`${job.title ?? ""} ${tags.join(" ")}`),
-    url: job.externalLink ?? `https://remotar.com.br/jobs/${job.id}`,
+    workMode: detectWorkMode(`${job.type ?? ""} ${tagText} ${description}`),
+    seniority: detectSeniority(`${job.title ?? ""} ${tagText}`),
+    url,
     description: description || undefined,
     stack,
     publishedAt,

@@ -4,7 +4,10 @@ import VagaModel from "../models/vaga.js";
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
-const SORT_MAP = {
+type QueryRecord = Record<string, any>;
+type CursorData = { field: string; value: string; id: string } | null;
+
+const SORT_MAP: Record<string, Record<string, 1 | -1>> = {
   newest: { createdAt: -1, _id: -1 },
   scraped: { scrapedAt: -1, _id: -1 },
   published: { publishedAt: -1, _id: -1 },
@@ -12,13 +15,13 @@ const SORT_MAP = {
 
 const LIST_PROJECTION = "-description";
 
-const escapeRegex = (value) =>
+const escapeRegex = (value: unknown) =>
   String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-const safeLimit = (limit) =>
+const safeLimit = (limit: unknown) =>
   Math.min(Math.max(Number(limit) || DEFAULT_LIMIT, 1), MAX_LIMIT);
 
-const encodeCursor = (doc, sort = "newest") => {
+const encodeCursor = (doc: any, sort = "newest") => {
   if (!doc) return null;
 
   const field =
@@ -39,20 +42,20 @@ const encodeCursor = (doc, sort = "newest") => {
   ).toString("base64url");
 };
 
-const decodeCursor = (cursor) => {
+const decodeCursor = (cursor: unknown): CursorData => {
   if (!cursor) return null;
 
   try {
-    return JSON.parse(Buffer.from(cursor, "base64url").toString("utf8"));
+    return JSON.parse(Buffer.from(String(cursor), "base64url").toString("utf8"));
   } catch {
     return null;
   }
 };
 
-const buildFilters = (filters = {}) => {
+const buildFilters = (filters: QueryRecord = {}) => {
   const { stack, workMode, seniority, source, company, search } = filters;
 
-  const query = {};
+  const query: QueryRecord = {};
 
   if (stack) {
     query.stack = Array.isArray(stack) ? { $in: stack } : stack;
@@ -81,7 +84,7 @@ const buildFilters = (filters = {}) => {
   return query;
 };
 
-const applyCursor = (query, cursorData) => {
+const applyCursor = (query: QueryRecord, cursorData: CursorData) => {
   if (!cursorData?.field || !cursorData?.value || !cursorData?.id) {
     return query;
   }
@@ -104,11 +107,11 @@ const applyCursor = (query, cursorData) => {
   };
 };
 
-export async function createVaga(data) {
+export async function createVaga(data: QueryRecord) {
   return VagaModel.create(data);
 }
 
-export async function updateVagaStatus(id, updateData) {
+export async function updateVagaStatus(id: unknown, updateData: QueryRecord) {
   return VagaModel.findByIdAndUpdate(id, { $set: updateData }, { returnDocument: 'after' });
 }
 
@@ -121,26 +124,26 @@ export async function cleanupOldJobs() {
     const result = await VagaModel.deleteMany({ createdAt: { $lt: thirtyDaysAgo } });
     console.log(`🧹 [database] limpeza concluída: ${result.deletedCount} vagas antigas removidas.`);
   } catch (err) {
-    console.error('❌ [database] erro na limpeza de vagas antigas:', err.message);
+    console.error('❌ [database] erro na limpeza de vagas antigas:', err instanceof Error ? err.message : String(err));
   }
 }
 
-export async function findVagaById(id) {
+export async function findVagaById(id: string) {
 
   if (!mongoose.Types.ObjectId.isValid(id)) return null;
 
   return VagaModel.findById(id).lean().maxTimeMS(5000);
 }
 
-export async function findVagaByUrl(url) {
+export async function findVagaByUrl(url: string) {
   return VagaModel.findOne({ url }).lean().maxTimeMS(5000);
 }
 
-export async function findVagaByContentHash(contentHash) {
+export async function findVagaByContentHash(contentHash: string) {
   return VagaModel.findOne({ contentHash }).lean().maxTimeMS(5000);
 }
 
-export async function createVagaIfNotExists(data) {
+export async function createVagaIfNotExists(data: QueryRecord) {
   try {
     const created = await VagaModel.create(data);
 
@@ -149,7 +152,8 @@ export async function createVagaIfNotExists(data) {
       vaga: created,
     };
   } catch (error) {
-    if (error?.code !== 11000) {
+    const duplicateError = error as { code?: number };
+    if (duplicateError.code !== 11000) {
       throw error;
     }
 
@@ -172,7 +176,7 @@ export async function createVagaIfNotExists(data) {
   }
 }
 
-export async function listVagas(filters = {}, options = {}) {
+export async function listVagas(filters: QueryRecord = {}, options: QueryRecord = {}) {
   const {
     limit = DEFAULT_LIMIT,
     cursor = null,
@@ -180,14 +184,18 @@ export async function listVagas(filters = {}, options = {}) {
     includeDescription = false,
   } = options;
 
-  const selectedSort = SORT_MAP[sort] ?? SORT_MAP.newest;
+  const selectedSort = SORT_MAP[String(sort)] ?? SORT_MAP.newest;
   const queryBase = buildFilters(filters);
   const cursorData = decodeCursor(cursor);
   const query = applyCursor(queryBase, cursorData);
   const finalLimit = safeLimit(limit);
 
-  const items = await VagaModel.find(query)
-    .select(includeDescription ? undefined : LIST_PROJECTION)
+  const mongoQuery = VagaModel.find(query);
+  if (!includeDescription) {
+    mongoQuery.select(LIST_PROJECTION);
+  }
+
+  const items = await mongoQuery
     .sort(selectedSort)
     .limit(finalLimit + 1)
     .lean()
@@ -209,7 +217,7 @@ export async function listVagas(filters = {}, options = {}) {
   };
 }
 
-export async function listRecentVagas(limit = DEFAULT_LIMIT) {
+export async function listRecentVagas(limit: unknown = DEFAULT_LIMIT) {
   const finalLimit = safeLimit(limit);
 
   return VagaModel.find()

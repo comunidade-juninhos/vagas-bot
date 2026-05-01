@@ -5,6 +5,7 @@ import {
   parseDate,
   stripHtml,
 } from "../../core/normalize-job.js";
+import { detectApplySourceFromUrl } from "../../core/source.js";
 import type { JobDTO, Seniority, WorkMode } from "../../core/types.js";
 
 export type MeuPadrinhoJob = {
@@ -74,7 +75,7 @@ export const normalizeMeuPadrinhoJob = (job: MeuPadrinhoJob): JobDTO => {
   ]);
 
   return {
-    source: "meupadrinho",
+    source: detectApplySourceFromUrl(url),
     externalId: job.nano_id,
     title,
     company,

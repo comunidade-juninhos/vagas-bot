@@ -33,7 +33,7 @@ describe("normalizeGupyJob", () => {
       workMode: "remote",
       seniority: "senior",
       url: "https://db.gupy.io/job/abc?jobBoardSource=gupy_portal",
-      stack: ["qa"]
+      stack: ["api", "cypress", "qa", "testing"]
     });
     expect(job.publishedAt?.toISOString()).toBe("2026-04-28T14:04:54.151Z");
     expect(job.scrapedAt).toBeInstanceOf(Date);

@@ -4,14 +4,21 @@ import mongoose from 'mongoose';
 const VagaSchema = new mongoose.Schema({
     title: { type: String, required: true }, // título da vaga
     company: { type: String, required: true }, // nome da empresa
+    summary: String, // resumo curto para notificações/frontend
     description: String, // descrição completa
     location: { type: String, default: 'não informado' }, // localidade
     url: { type: String, required: true, unique: true }, // link único da vaga
-    source: String, // fonte (remotar, gupy, linkedin)
+    source: String, // plataforma onde a pessoa vai se candidatar
     externalId: String, // id da vaga na plataforma de origem
     workMode: { type: String, default: 'onsite' }, // remoto, híbrido, presencial
     seniority: { type: String, default: 'n/a' }, // senioridade
     stack: [String], // lista de tecnologias
+    salaryText: String, // salário textual, quando houver
+    salaryMin: Number,
+    salaryMax: Number,
+    language: String,
+    country: String,
+    isInternational: Boolean,
     originalLanguage: { type: String, default: 'en' }, // idioma original para as bandeiras
     contentHash: { type: String, unique: true }, // hash para evitar duplicidade de conteúdo
     sent_whatsapp: { type: Boolean, default: false }, // se já foi enviada para o whatsapp

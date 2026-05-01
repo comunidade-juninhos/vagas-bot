@@ -1,120 +1,74 @@
-# vagas-bot
+# 🚀 Vagas Bot - Juninhos
 
-Bot de vagas tech com scrapers, deduplicacao, webhook de eventos e envio para Discord/WhatsApp.
+Um bot e scraper criado com carinho para a comunidade **Juninhos**.  
+O objetivo desse projeto é capturar automaticamente vagas da área de tecnologia de diversas fontes e enviar notificações fresquinhas direto no nosso grupo do WhatsApp e Discord.
 
-## Arquitetura
+## 🛠️ Stack Principal
 
-```text
-apps/worker-scraper  ->  jobs.created webhook  ->  apps/bots  ->  Discord / WhatsApp
-                                             |
-                                             v
-                                      MongoDB dedupe/status
-```
+- **Node.js & TypeScript:** O coração de tudo.
+- **MongoDB (Mongoose):** Banco de dados para salvar as vagas, evitar envios duplicados e gerenciar sessões do bot.
+- **Baileys:** Biblioteca usada para conectar e interagir com o WhatsApp via Web Socket.
+- **Discord.js:** Integração opcional para enviar as vagas também em um servidor do Discord.
+- **Express:** Servidor web simples para receber webhooks do scraper e servir as rotas de status/pareamento do WhatsApp.
+- **Render:** Projeto já configurado (via `render.yaml`) para deploy fácil usando Web Services e Cron Jobs.
 
-- `apps/worker-scraper`: busca vagas nas fontes, normaliza, deduplica localmente e emite `jobs.created`.
-- `apps/bots`: recebe `POST /webhooks/jobs`, salva a vaga, evita duplicidade e envia para os canais configurados.
-- `apps/api`: API separada para um frontend futuro.
-- `packages/core`: tipos, dedupe, normalizacao compartilhada e contrato dos eventos.
-- `packages/sources`: scrapers/parsers por fonte.
+## 🏗️ Como Funciona?
 
-## Evento `jobs.created`
+1. **Worker Scraper:** Um processo isolado que varre portais de emprego (MeuPadrinho, Remotar, Gupy) buscando vagas de tecnologia.
+2. **Deduplicação:** As vagas encontradas são processadas, formatadas e salvas no MongoDB para garantir que a mesma vaga não seja enviada duas vezes.
+3. **Webhook:** O scraper dispara um evento (via requisição POST) para o nosso Bot.
+4. **Entrega:** O Bot recebe a vaga e dispara as mensagens formatadas nos canais configurados (WhatsApp e/ou Discord).
 
-O worker envia para `WEBHOOK_URL`:
+## 💻 Como Rodar Localmente
 
-```json
-{
-  "event": "jobs.created",
-  "data": {
-    "job": {
-      "source": "meupadrinho",
-      "externalId": "123",
-      "title": "Pessoa Desenvolvedora Backend",
-      "company": "Acme",
-      "location": "Remoto",
-      "workMode": "remote",
-      "seniority": "mid",
-      "url": "https://example.com/job/123",
-      "description": "Node.js e TypeScript",
-      "stack": ["node", "typescript"],
-      "scrapedAt": "2026-04-30T12:00:00.000Z"
-    }
-  }
-}
-```
+### 1. Preparando o ambiente
 
-Se `WEBHOOK_SECRET` estiver definido, o worker envia o header `x-webhook-secret` e o app de bots exige o mesmo valor.
-
-## Rodar localmente
+Clone o repositório, instale as dependências e configure suas variáveis de ambiente:
 
 ```bash
 npm install
 cp .env.example .env
+```
+
+Abra o arquivo `.env` e preencha com as suas informações (Principalmente a sua URL do MongoDB e credenciais do Discord/WhatsApp).
+
+### 2. Pareando o WhatsApp (Opcional)
+
+Se você for usar o bot no WhatsApp, certifique-se de que o `.env` tem:
+
+```env
+WHATSAPP_ENABLED=true
+AUTH_METHOD=code
+MOBILE_NUMBER=5511999999999 # Seu número de telefone com DDD
+```
+
+Inicie o bot:
+
+```bash
 npm start
 ```
 
-Em outro terminal, rode o worker:
+Acesse `http://localhost:3000/codigo` no seu navegador para pegar o código e vincule no seu WhatsApp (Aparelhos Conectados > Conectar com número de telefone).
+
+Após conectar, pegue o ID do grupo na rota `http://localhost:3000/whatsapp/groups` e coloque no seu `.env` na variável `WHATSAPP_GROUP_ID`. Depois disso pode reiniciar o bot.
+
+### 3. Rodando o Projeto Completo
+
+Para o desenvolvimento, você pode rodar tanto o Bot quanto o Scraper ao mesmo tempo em modo de observação (watch):
 
 ```bash
-npm run worker
+npm run dev
 ```
 
-Comandos uteis:
+Se quiser rodar o scraper apenas uma vez para testar a busca e disparo:
 
 ```bash
-npm run dev          # bots + worker em watch mode
-npm run api          # API futura para frontend
-npm test
-npm run typecheck
-npm run audit:remotar
-npm run audit:gupy
+npm run worker:once
 ```
 
-## Variaveis principais
+## ☁️ Deploy
 
-- `MONGODB_URI`: string de conexao MongoDB.
-- `WEBHOOK_URL`: URL do bot, normalmente `https://SEU-SERVICO.onrender.com/webhooks/jobs`.
-- `WEBHOOK_SECRET`: segredo compartilhado entre worker e bot.
-- `JOB_SOURCES`: fontes ativas no worker. Padrao: `meupadrinho`. Para testes amplos: `meupadrinho,remotar,gupy`.
-- `MEUPADRINHO_MAX_PAGES`: quantidade de paginas da fonte Meu Padrinho por ciclo. Padrao: `3`.
-- `DISCORD_ENABLED`: habilita envio Discord. Padrao: `true`.
-- `WHATSAPP_ENABLED`: habilita conexao/envio WhatsApp. Padrao local recomendado: `false`.
-- `MOBILE_NUMBER`: telefone usado no pareamento WhatsApp.
-- `WHATSAPP_GROUP_ID`: grupo de destino.
-- `DISCORD_TOKEN` e `DISCORD_CHANNEL_ID`: destino Discord.
+O projeto já contém um arquivo `render.yaml` otimizado. No painel do Render.com, basta conectar seu repositório que ele vai criar:
 
-## Fontes
-
-- `meupadrinho`: fonte padrao e prioritaria. Usa a API publica `GET /api/vagas?page=N` e busca detalhe em `GET /api/vagas/:nano_id` para capturar descricao, requisitos, contrato, salario e link real da vaga.
-- `remotar`: fonte complementar, opt-in via `JOB_SOURCES`.
-- `gupy`: fonte de volume, opt-in via `JOB_SOURCES`.
-
-## Deploy
-
-O `Dockerfile` sobe `npm start`, que inicia `apps/bots`.
-
-No Render, `render.yaml` define:
-
-- `vagas-bot-bots`: web service com healthcheck em `/health`.
-- `vagas-bot-worker`: cron job que executa `npm run worker`.
-
-Depois do deploy dos bots, configure `WEBHOOK_URL` no cron com:
-
-```text
-https://SEU-SERVICO.onrender.com/webhooks/jobs
-```
-
-## WhatsApp
-
-WhatsApp pode ficar desligado enquanto o webhook e Discord sao validados:
-
-```text
-WHATSAPP_ENABLED=false
-```
-
-Para habilitar, defina `WHATSAPP_ENABLED=true` e depois de iniciar o app de bots abra:
-
-```text
-/whatsapp/pairing
-```
-
-O alias antigo `/codigo` continua redirecionando para essa rota.
+- Um **Web Service** para a API e o Bot do WhatsApp/Discord.
+- Um **Cron Job** que roda o Scraper automaticamente a cada 2 horas buscando novas vagas.

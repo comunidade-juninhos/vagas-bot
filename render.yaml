@@ -1,8 +1,10 @@
 services:
   - type: web
     name: vagas-bot-bots
-    runtime: docker
+    runtime: node
     plan: free
+    buildCommand: npm install
+    startCommand: npm run start
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
@@ -28,10 +30,11 @@ services:
 
   - type: cron
     name: vagas-bot-worker
-    runtime: docker
+    runtime: node
     plan: free
-    schedule: "0 */2 * * *"
-    dockerCommand: npm run worker
+    schedule: "*/15 * * * *"
+    buildCommand: npm install
+    startCommand: npm run worker:once
     envVars:
       - key: NODE_ENV
         value: production
@@ -39,3 +42,23 @@ services:
         sync: false
       - key: WEBHOOK_SECRET
         sync: false
+      - key: JOB_SOURCES
+        value: meupadrinho,remotar
+      - key: MEUPADRINHO_MAX_PAGES
+        value: "5"
+      - key: REMOTAR_MAX_PAGES
+        value: "5"
+      - key: GUPY_MAX_PAGES_PER_KEYWORD
+        value: "5"
+      - key: WEBHOOK_MAX_JOBS_PER_RUN
+        value: "100"
+      - key: WEBHOOK_DELAY_MS
+        value: "500"
+      - key: NOTIFICATION_QUIET_HOURS_ENABLED
+        value: "true"
+      - key: NOTIFICATION_START_HOUR
+        value: "6"
+      - key: NOTIFICATION_END_HOUR
+        value: "24"
+      - key: NOTIFICATION_TIME_ZONE
+        value: America/Sao_Paulo

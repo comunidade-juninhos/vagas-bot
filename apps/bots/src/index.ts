@@ -1,4 +1,7 @@
 import express from "express";
+import type { Request, Response } from "express";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import "dotenv/config";
 import {
   connectWhatsApp,
@@ -12,9 +15,25 @@ import { connectDatabase } from "#root/services/database.js";
 import { createJobsWebhookRouter } from "./webhooks/jobs.js";
 
 const app = express();
+
+// Segurança Básica
+app.use(helmet({
+  contentSecurityPolicy: false // Necessário se for rodar HTML inline com CSS/Scripts
+}));
+app.disable("x-powered-by");
+
+// Limita as requisições para evitar DDoS/Brute force
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  limit: 100, // limite por IP
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+});
+app.use(limiter);
+
 app.use(express.json({ limit: "1mb" }));
 
-function renderWhatsAppPairingPage() {
+function renderWhatsAppPairingPage(): string {
   if (!config.whatsapp.enabled) {
     return `
       <div style="font-family: sans-serif; text-align: center; padding: 30px; background: #f4f7f6; min-height: 100vh;">
@@ -70,7 +89,7 @@ async function start() {
 
   const discordClient = config.discord.enabled ? await connectDiscord() : null;
 
-  app.get("/health", (req, res) => {
+  app.get("/health", (_req: Request, res: Response) => {
     res.json({
       ok: true,
       service: "vagas-bot/bots",
@@ -82,11 +101,11 @@ async function start() {
     });
   });
 
-  app.get("/ping", (req, res) => res.send("pong"));
-  app.get("/codigo", (req, res) => res.redirect("/whatsapp/pairing"));
-  app.get("/whatsapp/pairing", (req, res) => res.send(renderWhatsAppPairingPage()));
+  app.get("/ping", (_req: Request, res: Response) => res.send("pong"));
+  app.get("/codigo", (_req: Request, res: Response) => res.redirect("/whatsapp/pairing"));
+  app.get("/whatsapp/pairing", (_req: Request, res: Response) => res.send(renderWhatsAppPairingPage()));
 
-  app.get("/whatsapp/reset", async (req, res) => {
+  app.get("/whatsapp/reset", async (_req: Request, res: Response) => {
     if (!config.whatsapp.enabled) {
       return res.status(409).send("WhatsApp desativado. Defina WHATSAPP_ENABLED=true para parear.");
     }

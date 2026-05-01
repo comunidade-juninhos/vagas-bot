@@ -1,13 +1,16 @@
 import express from "express";
 import "dotenv/config";
 import rateLimit from "express-rate-limit";
+import helmet from "helmet";
 
 import vagaRoutes from "./routes/vagaRoutes.js";
 import { connectDatabase } from "#root/services/database.js";
 
 const app = express();
 
-app.use(express.json());
+app.use(helmet());
+app.disable("x-powered-by");
+app.use(express.json({ limit: "1mb" }));
 
 // rate limit
 app.use(

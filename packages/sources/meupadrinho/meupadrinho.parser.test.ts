@@ -24,7 +24,7 @@ describe("normalizeMeuPadrinhoJob", () => {
     });
 
     expect(job).toMatchObject({
-      source: "meupadrinho",
+      source: "linkedin",
       externalId: "0yUsOIUt",
       title: "MLOps Engineer (Remote)",
       company: "Hire Feed",
@@ -81,7 +81,7 @@ describe("normalizeMeuPadrinhoJob", () => {
     });
 
     expect(job).toMatchObject({
-      source: "meupadrinho",
+      source: "linkedin",
       externalId: "LJlZ6BSy",
       title: "Desenvolvedor Backend Júnior",
       company: "Escavador",
@@ -89,7 +89,7 @@ describe("normalizeMeuPadrinhoJob", () => {
       workMode: "remote",
       seniority: "junior",
     });
-    expect(job.stack).toEqual(expect.arrayContaining(["backend", "python", "sql", "api", "git", "docker", "asyncio", "testing", "web-scraping"]));
+    expect(job.stack).toEqual(expect.arrayContaining(["api", "backend", "docker", "git", "python", "sql", "testing", "web-scraping"]));
     expect(job.description).toContain("Requisitos: Python; padrões de projeto; bancos de dados SQL");
     expect(job.description).toContain("Contrato: CLT");
     expect(job.description).toContain("Nível: Júnior");

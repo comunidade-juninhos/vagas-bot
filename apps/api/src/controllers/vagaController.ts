@@ -3,8 +3,9 @@ import {
   getRecentVagas,
   createVaga,
 } from "#root/services/vagaService.js";
+import type { Request, Response } from "express";
 
-export async function listarVagas(req, res) {
+export async function listarVagas(req: Request, res: Response) {
   try {
     const {
       stack,
@@ -42,7 +43,7 @@ export async function listarVagas(req, res) {
   }
 }
 
-export async function listarRecentes(req, res) {
+export async function listarRecentes(req: Request, res: Response) {
   try {
     const { limit } = req.query;
 
@@ -56,7 +57,7 @@ export async function listarRecentes(req, res) {
 }
 
 // opcional (pra testar)
-export async function criarVaga(req, res) {
+export async function criarVaga(req: Request, res: Response) {
   try {
     const result = await createVaga(req.body);
 

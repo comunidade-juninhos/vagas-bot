@@ -6,6 +6,7 @@ import {
   parseDate,
   stripHtml
 } from "../../core/normalize-job.js";
+import { detectApplySourceFromUrl } from "../../core/source.js";
 import type { JobDTO, WorkMode } from "../../core/types.js";
 
 import { z } from "zod";
@@ -173,19 +174,20 @@ export const normalizeGupyJob = (job: GupyJob): JobDTO => {
   const workMode = detectGupyWorkMode(job);
   const description = stripHtml(job.description ?? "");
   const skillTags = getSkillTags(job);
-  const stack = extractStack([job.name, skillTags.join(" ")]);
+  const stack = extractStack([job.name, skillTags.join(" "), description]);
   const location = formatLocation(job.city, job.state, job.country);
   const publishedAt = parseDate(job.publishedDate);
+  const url = job.jobUrl ?? `https://portal.gupy.io/job-search/term=${job.id}`;
 
   return {
-    source: "gupy",
+    source: detectApplySourceFromUrl(url),
     externalId: String(job.id),
     title: (job.name ?? "").trim(),
     company: (job.careerPageName ?? "Empresa não informada").trim(),
     location,
     workMode,
     seniority: detectSeniority(`${job.name ?? ""} ${skillTags.join(" ")}`),
-    url: job.jobUrl ?? `https://portal.gupy.io/job-search/term=${job.id}`,
+    url,
     description: description || undefined,
     stack,
     publishedAt,

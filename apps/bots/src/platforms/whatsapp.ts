@@ -4,6 +4,7 @@ import fs from "fs";
 import 'dotenv/config';
 import { formatJobMessage } from '../utils/formatter.js';
 import mongoose from 'mongoose';
+import type { JobDTO } from '../../../../packages/core/types.js';
 
 // esquema simples para salvar a sessão no banco
 const SessionSchema = new mongoose.Schema({
@@ -22,18 +23,18 @@ const LockModel = mongoose.models.Lock || mongoose.model('Lock', LockSchema);
 
 const myInstanceId = Math.random().toString(36).substring(7);
 export let currentPairingCode = "Aguardando..."; 
-export let currentQRCode = null; // guarda o link do qr code
+export let currentQRCode: string | null = null; // guarda o link do qr code
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout});
-const question = (text) => new Promise((resolve) => rl.question(text, resolve));
+const question = (text: string) => new Promise<string>((resolve) => rl.question(text, resolve));
 
-let socketInstance = null; // guarda a conexão ativa do whatsapp
+let socketInstance: any = null; // guarda a conexão ativa do whatsapp
 let isReady = false; // sinaliza se o bot está pronto para enviar mensagens
-let lockHeartbeatInterval = null;
+let lockHeartbeatInterval: NodeJS.Timeout | null = null;
 let reconnectInProgress = false;
-let lastReadyAt = null;
-let lastCloseAt = null;
-let lastRepairAt = null;
+let lastReadyAt: string | null = null;
+let lastCloseAt: string | null = null;
+let lastRepairAt: number | null = null;
 let consecutiveSendFailures = 0;
 const MAX_SEND_FAILURES_BEFORE_REPAIR = 5;
 const REPAIR_COOLDOWN_MS = 15 * 60 * 1000;
@@ -58,7 +59,7 @@ const NOISY_BAILEYS_PATTERNS = [
     'failed to upload pre-keys',
 ];
 
-function stringifyLogArg(arg) {
+function stringifyLogArg(arg: any): string {
     if (typeof arg === 'string') return arg;
     if (arg instanceof Error) return String(arg);
     try {
@@ -68,25 +69,25 @@ function stringifyLogArg(arg) {
     }
 }
 
-function isNoisyBaileysLog(...args) {
+function isNoisyBaileysLog(...args: any[]) {
     const text = args.map(stringifyLogArg).join(' ').toLowerCase();
     return NOISY_BAILEYS_PATTERNS.some((pattern) => text.includes(pattern));
 }
 
-const baileysLogger = {
+const baileysLogger: any = {
     level: 'error',
     trace: () => {},
     debug: () => {},
     info: () => {},
-    warn: (...args) => {
+    warn: (...args: any[]) => {
         if (isNoisyBaileysLog(...args)) return;
         console.warn('[BAILEYS WARN]', ...args);
     },
-    error: (...args) => {
+    error: (...args: any[]) => {
         if (isNoisyBaileysLog(...args)) return;
         console.error('[BAILEYS ERROR]', ...args);
     },
-    fatal: (...args) => {
+    fatal: (...args: any[]) => {
         if (isNoisyBaileysLog(...args)) return;
         console.error('[BAILEYS FATAL]', ...args);
     },
@@ -96,12 +97,12 @@ const baileysLogger = {
     isLevelEnabled: () => false,
 };
 
-function normalizeErrorMessage(error) {
+function normalizeErrorMessage(error: unknown) {
     if (!error) return "";
-    return String(error.message || error).toLowerCase();
+    return String(error instanceof Error ? error.message : error).toLowerCase();
 }
 
-async function forceRepairSession(reason) {
+async function forceRepairSession(reason: string) {
     const now = Date.now();
     if (lastRepairAt && (now - lastRepairAt) < REPAIR_COOLDOWN_MS) {
         console.log(`⚠️ [WHATSAPP] Reparo ignorado (cooldown ativo). Motivo: ${reason}`);
@@ -141,7 +142,8 @@ export async function connectWhatsApp() {
         const lock = await LockModel.findOne({ id: 'instance_lock' });
         
         // se houver um lock de menos de 45 segundos atrás de OUTRA instância, a gente espera
-        if (lock && lock.instanceId !== myInstanceId && (now - lock.lastSeen) < 45000) {
+        const lockLastSeen = lock?.lastSeen instanceof Date ? lock.lastSeen : new Date(lock?.lastSeen ?? 0);
+        if (lock && lock.instanceId !== myInstanceId && (now.getTime() - lockLastSeen.getTime()) < 45000) {
             console.log("⏳ [SYSTEM] Outra instância está ativa. Aguardando 30s...");
             currentPairingCode = "AGUARDANDO OUTRO BOT...";
             await delay(30000);
@@ -164,7 +166,7 @@ export async function connectWhatsApp() {
             }, 20000);
         }
     } catch (e) {
-        console.error("⚠️ [LOCK] Falha ao gerenciar trava de instância:", e.message);
+        console.error("⚠️ [LOCK] Falha ao gerenciar trava de instância:", e instanceof Error ? e.message : String(e));
     }
 
     // 1. tenta restaurar a sessão do banco de dados
@@ -177,7 +179,7 @@ export async function connectWhatsApp() {
                 fs.writeFileSync('./auth_info/creds.json', savedSession.data);
             }
         } catch (err) {
-            console.error("⚠️ [WHATSAPP] Falha ao restaurar sessão:", err.message);
+            console.error("⚠️ [WHATSAPP] Falha ao restaurar sessão:", err instanceof Error ? err.message : String(err));
         }
     }
 
@@ -209,7 +211,7 @@ export async function connectWhatsApp() {
                 currentPairingCode = code;
                 console.log(`\n🔥 Pairing Code: ${code}\n`);
             } catch (err) {
-                console.error("❌ [WHATSAPP] Erro ao pedir código:", err.message);
+                console.error("❌ [WHATSAPP] Erro ao pedir código:", err instanceof Error ? err.message : String(err));
                 currentPairingCode = "ERRO - TENTE RESET";
             }
         }
@@ -227,7 +229,7 @@ export async function connectWhatsApp() {
             isReady = false;
             reconnectInProgress = true;
             lastCloseAt = new Date().toISOString();
-            const statusCode = lastDisconnect?.error?.output?.statusCode;
+            const statusCode = (lastDisconnect?.error as any)?.output?.statusCode;
             const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
             
             // SE A SESSÃO BUGAR (ERRO 401 OU 428 PERSISTENTE), LIMPAMOS E PEDIMOS NOVO LOGIN
@@ -265,7 +267,7 @@ export async function connectWhatsApp() {
                 { upsert: true }
             );
         } catch (err) {
-            console.error("⚠️ [WHATSAPP] Erro ao salvar backup da sessão:", err.message);
+            console.error("⚠️ [WHATSAPP] Erro ao salvar backup da sessão:", err instanceof Error ? err.message : String(err));
         }
     });
 
@@ -273,7 +275,7 @@ export async function connectWhatsApp() {
 }
 
 // função que envia a mensagem formatada
-export async function sendJob(job, jid) {
+export async function sendJob(job: JobDTO, jid: string) {
     if (!socketInstance) {
         console.error("❌ socket não inicializado");
         return false;
@@ -294,7 +296,8 @@ export async function sendJob(job, jid) {
     } catch (error) {
         const errorMessage = normalizeErrorMessage(error);
         consecutiveSendFailures += 1;
-        console.error(`❌ [error] falha ao enviar: ${error.message}`);
+        const detail = error instanceof Error ? error.message : String(error);
+        console.error(`❌ [error] falha ao enviar: ${detail}`);
 
         const shouldRepairByError =
             errorMessage.includes('bad mac') ||
@@ -305,13 +308,12 @@ export async function sendJob(job, jid) {
         const shouldRepairByVolume = consecutiveSendFailures >= MAX_SEND_FAILURES_BEFORE_REPAIR;
 
         if (shouldRepairByError || shouldRepairByVolume) {
-            await forceRepairSession(shouldRepairByError ? error.message : "muitas falhas consecutivas de envio");
+            await forceRepairSession(shouldRepairByError ? detail : "muitas falhas consecutivas de envio");
         }
 
         return false;
     }
 }
-
 
 
 
