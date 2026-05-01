@@ -1,5 +1,6 @@
 import pRetry, { AbortError } from "p-retry";
 import { z } from "zod";
+import { browserHeaders } from "../http.js";
 import type { SourceJob } from "../types.js";
 import { REMOTAR_TECH_CATEGORY_IDS, remotarJobSchema } from "./remotar.parser.js";
 import type { RemotarJob } from "./remotar.parser.js";
@@ -57,10 +58,10 @@ const fetchJson = async <T>(url: string, schema: z.ZodType<T>): Promise<T> => {
   return pRetry(
     async () => {
       const response = await fetch(url, {
-        headers: {
-          accept: "application/json",
-          "user-agent": "vagas-bot/0.1 (+https://remotar.com.br)",
-        },
+        headers: browserHeaders({
+          accept: "application/json, text/plain, */*",
+          referer: "https://remotar.com.br/",
+        }),
       });
 
       if (!response.ok) {

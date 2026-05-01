@@ -1,5 +1,6 @@
 import pRetry, { AbortError } from "p-retry";
 import { z } from "zod";
+import { browserHeaders } from "../http.js";
 import type { SourceJob } from "../types.js";
 import { gupyJobSchema } from "./gupy.parser.js";
 import type { GupyJob } from "./gupy.parser.js";
@@ -56,12 +57,11 @@ const fetchJson = async <T>(url: string, schema: z.ZodType<T>): Promise<T> => {
   return pRetry(
     async () => {
       const response = await fetch(url, {
-        headers: {
+        headers: browserHeaders({
           accept: "application/json, text/plain, */*",
           origin: "https://portal.gupy.io",
           referer: "https://portal.gupy.io/",
-          "user-agent": "vagas-bot/0.1"
-        }
+        }),
       });
 
       if (!response.ok) {

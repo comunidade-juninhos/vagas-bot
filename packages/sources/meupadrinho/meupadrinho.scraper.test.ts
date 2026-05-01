@@ -55,6 +55,57 @@ describe("fetchMeuPadrinhoJobs", () => {
       "https://meupadrinho.com.br/api/vagas?page=0&cargos=QA",
       expect.any(Object),
     );
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "accept-language": expect.stringContaining("pt-BR"),
+          referer: "https://meupadrinho.com.br/vagas",
+          "user-agent": expect.stringMatching(/^Mozilla\/5\.0 .*Firefox\//),
+        }),
+      }),
+    );
     expect(fetchMock.mock.calls.filter(([url]) => String(url).includes("/api/vagas/job-b"))).toHaveLength(1);
+  });
+
+  it("keeps valid jobs when one detail request is rate limited", async () => {
+    const fetchMock = vi.fn(async (url: string | URL | Request) => {
+      const requestUrl = new URL(String(url));
+      const path = requestUrl.pathname;
+
+      if (path.endsWith("/job-rate-limited")) {
+        return new Response("rate limited", { status: 429 });
+      }
+
+      if (path.startsWith("/api/vagas/")) {
+        const id = path.split("/").at(-1) ?? "";
+        return new Response(JSON.stringify(detailJob(id)), { status: 200 });
+      }
+
+      return new Response(JSON.stringify({
+        vagas: [listJob("job-ok"), listJob("job-rate-limited")],
+        tem_proxima_pagina: false,
+      }), { status: 200 });
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const jobs = await fetchMeuPadrinhoJobs({ maxPages: 1, detailRetries: 0 });
+
+    expect(jobs.map((job) => job.externalId)).toEqual(["job-ok"]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Skipping detail job-rate-limited"));
+  });
+
+  it("skips a list query that is rate limited instead of failing the worker", async () => {
+    const fetchMock = vi.fn(async () => new Response("rate limited", { status: 429 }));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    vi.stubGlobal("fetch", fetchMock);
+
+    const jobs = await fetchMeuPadrinhoJobs({ maxPages: 1, listRetries: 0 });
+
+    expect(jobs).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("Skipping list page 0"));
   });
 });

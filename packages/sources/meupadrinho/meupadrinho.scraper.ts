@@ -1,4 +1,5 @@
 import pLimit from "p-limit";
+import { browserHeaders } from "../http.js";
 import type { SourceJob } from "../types.js";
 import type { MeuPadrinhoJob } from "./meupadrinho.parser.js";
 
@@ -8,6 +9,11 @@ export type MeuPadrinhoScraperOptions = {
   maxPages?: number;
   since?: Date;
   cargoFilters?: string[];
+  listRetries?: number;
+  listRetryDelayMs?: number;
+  detailConcurrency?: number;
+  detailRetries?: number;
+  detailRetryDelayMs?: number;
 };
 
 type MeuPadrinhoListResponse = {
@@ -17,10 +23,10 @@ type MeuPadrinhoListResponse = {
 
 const fetchJson = async <T>(url: string): Promise<T> => {
   const response = await fetch(url, {
-    headers: {
-      accept: "application/json",
-      "user-agent": "vagas-bot/0.1 (+https://github.com/)"
-    }
+    headers: browserHeaders({
+      accept: "application/json, text/plain, */*",
+      referer: "https://meupadrinho.com.br/vagas",
+    }),
   });
 
   if (!response.ok) {
@@ -61,10 +67,73 @@ const uniqueCargoFilters = (values: string[] | undefined): string[] => [
   ...new Set((values ?? []).map((value) => value.trim()).filter(Boolean)),
 ];
 
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+const readPositiveInt = (value: number | undefined, fallback: number): number => {
+  if (value === undefined || !Number.isFinite(value)) return fallback;
+  return Math.max(1, Math.trunc(value));
+};
+
+const fetchDetailWithRetry = async (
+  nanoId: string,
+  retries: number,
+  retryDelayMs: number,
+): Promise<MeuPadrinhoJob | null> => {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await fetchJson<MeuPadrinhoJob>(`${BASE_URL}/vagas/${nanoId}`);
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries && retryDelayMs > 0) {
+        await sleep(retryDelayMs);
+      }
+    }
+  }
+
+  console.warn(
+    `[MeuPadrinho] Skipping detail ${nanoId}: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+  );
+  return null;
+};
+
+const fetchListWithRetry = async (
+  url: string,
+  page: number,
+  cargoFilter: string | undefined,
+  retries: number,
+  retryDelayMs: number,
+): Promise<MeuPadrinhoListResponse | null> => {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      return await fetchJson<MeuPadrinhoListResponse>(url);
+    } catch (error) {
+      lastError = error;
+      if (attempt < retries && retryDelayMs > 0) {
+        await sleep(retryDelayMs);
+      }
+    }
+  }
+
+  const filterLabel = cargoFilter ? ` (${cargoFilter})` : "";
+  console.warn(
+    `[MeuPadrinho] Skipping list page ${page}${filterLabel}: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+  );
+  return null;
+};
+
 export async function fetchMeuPadrinhoJobs(
   options: MeuPadrinhoScraperOptions = {}
 ): Promise<Array<SourceJob<MeuPadrinhoJob>>> {
   const maxPages = Math.max(1, options.maxPages ?? 3);
+  const listRetries = Math.max(0, Math.trunc(options.listRetries ?? 2));
+  const listRetryDelayMs = Math.max(0, Math.trunc(options.listRetryDelayMs ?? 1500));
+  const detailConcurrency = readPositiveInt(options.detailConcurrency, 2);
+  const detailRetries = Math.max(0, Math.trunc(options.detailRetries ?? 2));
+  const detailRetryDelayMs = Math.max(0, Math.trunc(options.detailRetryDelayMs ?? 1500));
   const cargoFilters = uniqueCargoFilters(options.cargoFilters);
   const listQueries = [undefined, ...cargoFilters];
   const listItems: Array<Pick<MeuPadrinhoJob, "nano_id" | "horario_registro" | "vaga_encerrada">> = [];
@@ -72,7 +141,15 @@ export async function fetchMeuPadrinhoJobs(
 
   for (const cargoFilter of listQueries) {
     for (let page = 0; page < maxPages; page += 1) {
-      const data = await fetchJson<MeuPadrinhoListResponse>(buildListUrl(page, cargoFilter));
+      const data = await fetchListWithRetry(
+        buildListUrl(page, cargoFilter),
+        page,
+        cargoFilter,
+        listRetries,
+        listRetryDelayMs,
+      );
+      if (!data) break;
+
       const vagas = data.vagas ?? [];
 
       for (const job of vagas) {
@@ -92,13 +169,15 @@ export async function fetchMeuPadrinhoJobs(
     }
   }
 
-  const limit = pLimit(4);
+  const limit = pLimit(detailConcurrency);
   const details = await Promise.all(
     listItems.map((item) =>
-      limit(async () => {
-        const detail = await fetchJson<MeuPadrinhoJob>(`${BASE_URL}/vagas/${item.nano_id}`);
+      limit(async (): Promise<SourceJob<MeuPadrinhoJob> | null> => {
+        const detail = await fetchDetailWithRetry(item.nano_id, detailRetries, detailRetryDelayMs);
+        if (!detail) return null;
+
         return {
-          source: "meupadrinho" as const,
+          source: "meupadrinho",
           externalId: detail.nano_id,
           raw: detail
         };
@@ -106,5 +185,5 @@ export async function fetchMeuPadrinhoJobs(
     )
   );
 
-  return details;
+  return details.filter((detail): detail is SourceJob<MeuPadrinhoJob> => Boolean(detail));
 }
