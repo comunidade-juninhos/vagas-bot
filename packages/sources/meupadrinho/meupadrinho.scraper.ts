@@ -7,6 +7,7 @@ const BASE_URL = "https://meupadrinho.com.br/api";
 export type MeuPadrinhoScraperOptions = {
   maxPages?: number;
   since?: Date;
+  cargoFilters?: string[];
 };
 
 type MeuPadrinhoListResponse = {
@@ -45,20 +46,50 @@ const isAfterSince = (value: string | null | undefined, since?: Date): boolean =
   return Number.isNaN(date.getTime()) || date >= since;
 };
 
+const buildListUrl = (page: number, cargoFilter?: string): string => {
+  const url = new URL(`${BASE_URL}/vagas`);
+  url.searchParams.set("page", String(page));
+
+  if (cargoFilter) {
+    url.searchParams.append("cargos", cargoFilter);
+  }
+
+  return url.toString();
+};
+
+const uniqueCargoFilters = (values: string[] | undefined): string[] => [
+  ...new Set((values ?? []).map((value) => value.trim()).filter(Boolean)),
+];
+
 export async function fetchMeuPadrinhoJobs(
   options: MeuPadrinhoScraperOptions = {}
 ): Promise<Array<SourceJob<MeuPadrinhoJob>>> {
   const maxPages = Math.max(1, options.maxPages ?? 3);
+  const cargoFilters = uniqueCargoFilters(options.cargoFilters);
+  const listQueries = [undefined, ...cargoFilters];
   const listItems: Array<Pick<MeuPadrinhoJob, "nano_id" | "horario_registro" | "vaga_encerrada">> = [];
+  const seenListIds = new Set<string>();
 
-  for (let page = 0; page < maxPages; page += 1) {
-    const data = await fetchJson<MeuPadrinhoListResponse>(`${BASE_URL}/vagas?page=${page}`);
-    const vagas = data.vagas ?? [];
-    listItems.push(
-      ...vagas.filter((job) => !job.vaga_encerrada && isAfterSince(job.horario_registro, options.since))
-    );
+  for (const cargoFilter of listQueries) {
+    for (let page = 0; page < maxPages; page += 1) {
+      const data = await fetchJson<MeuPadrinhoListResponse>(buildListUrl(page, cargoFilter));
+      const vagas = data.vagas ?? [];
 
-    if (!data.tem_proxima_pagina || vagas.length === 0) break;
+      for (const job of vagas) {
+        if (
+          job.vaga_encerrada ||
+          !isAfterSince(job.horario_registro, options.since) ||
+          seenListIds.has(job.nano_id)
+        ) {
+          continue;
+        }
+
+        seenListIds.add(job.nano_id);
+        listItems.push(job);
+      }
+
+      if (!data.tem_proxima_pagina || vagas.length === 0) break;
+    }
   }
 
   const limit = pLimit(4);

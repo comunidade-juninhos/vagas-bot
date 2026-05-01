@@ -5,6 +5,10 @@ export type NotificationWindowConfig = {
   timeZone: string;
 };
 
+export type WorkerSource = "meupadrinho" | "remotar" | "gupy";
+
+const WORKER_SOURCES: WorkerSource[] = ["meupadrinho", "remotar", "gupy"];
+
 const clampHour = (value: number, fallback: number): number => {
   if (!Number.isFinite(value)) return fallback;
   return Math.min(Math.max(Math.trunc(value), 0), 24);
@@ -22,6 +26,32 @@ export function readNotificationWindowConfig(env: NodeJS.ProcessEnv = process.en
     endHour: clampHour(Number(env.NOTIFICATION_END_HOUR ?? 24), 24),
     timeZone: env.NOTIFICATION_TIME_ZONE || "America/Sao_Paulo",
   };
+}
+
+export function readWorkerSources(env: { JOB_SOURCES?: string } = process.env): WorkerSource[] {
+  const requestedSources = (env.JOB_SOURCES || WORKER_SOURCES.join(","))
+    .split(",")
+    .map((source) => source.trim().toLowerCase())
+    .filter(Boolean);
+
+  const supportedSources = new Set(WORKER_SOURCES);
+  const sources = requestedSources.filter((source): source is WorkerSource =>
+    supportedSources.has(source as WorkerSource)
+  );
+
+  return sources.length > 0 ? sources : [...WORKER_SOURCES];
+}
+
+export function selectSourceForCycle(sources: readonly WorkerSource[], date = new Date(), intervalMs = 10 * 60 * 1000): WorkerSource {
+  if (sources.length === 0) {
+    throw new Error("No worker sources configured");
+  }
+
+  const safeIntervalMs = Number.isFinite(intervalMs) && intervalMs > 0 ? intervalMs : 10 * 60 * 1000;
+  const dayStartMs = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+  const intervalBucket = Math.floor((date.getTime() - dayStartMs) / safeIntervalMs);
+
+  return sources[intervalBucket % sources.length];
 }
 
 function getHourInTimeZone(date: Date, timeZone: string): number {

@@ -31,9 +31,11 @@ services:
       - key: WEBHOOK_URL
         value: http://127.0.0.1:3000/webhooks/jobs
       - key: JOB_SOURCES
-        value: meupadrinho,remotar
+        value: meupadrinho,remotar,gupy
       - key: MEUPADRINHO_MAX_PAGES
         value: "10"
+      - key: MEUPADRINHO_CARGO_FILTERS
+        value: QA,BACKEND,FRONTEND,FULLSTACK,MOBILE,DEVOPS,DADOS,CX,SECURITY,IA,PRODUTO
       - key: REMOTAR_MAX_PAGES
         value: "10"
       - key: GUPY_MAX_PAGES_PER_KEYWORD

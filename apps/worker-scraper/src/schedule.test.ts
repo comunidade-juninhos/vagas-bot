@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isWithinNotificationWindow, readNotificationWindowConfig } from "./schedule.js";
+import {
+  isWithinNotificationWindow,
+  readNotificationWindowConfig,
+  readWorkerSources,
+  selectSourceForCycle,
+} from "./schedule.js";
 
 describe("worker notification schedule", () => {
   it("allows notifications from 06:00 until before midnight in Sao Paulo", () => {
@@ -21,5 +26,20 @@ describe("worker notification schedule", () => {
     });
 
     expect(isWithinNotificationWindow(new Date("2026-05-01T04:00:00.000Z"), config)).toBe(true);
+  });
+});
+
+describe("worker source schedule", () => {
+  it("defaults to all configured scraper sources", () => {
+    expect(readWorkerSources({})).toEqual(["meupadrinho", "remotar", "gupy"]);
+  });
+
+  it("rotates one source per worker interval bucket", () => {
+    const sources = readWorkerSources({ JOB_SOURCES: "meupadrinho,remotar,gupy" });
+    const intervalMs = 10 * 60 * 1000;
+
+    expect(selectSourceForCycle(sources, new Date("2026-05-01T20:04:00.000Z"), intervalMs)).toBe("meupadrinho");
+    expect(selectSourceForCycle(sources, new Date("2026-05-01T20:13:00.000Z"), intervalMs)).toBe("remotar");
+    expect(selectSourceForCycle(sources, new Date("2026-05-01T20:23:00.000Z"), intervalMs)).toBe("gupy");
   });
 });

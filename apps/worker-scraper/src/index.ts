@@ -7,7 +7,7 @@ import type { JobDTO } from "../../../packages/core/types.js";
 import { fetchGupyJobs, isTechGupyJob, normalizeGupyJob } from "../../../packages/sources/gupy/index.js";
 import { fetchMeuPadrinhoJobs, normalizeMeuPadrinhoJob } from "../../../packages/sources/meupadrinho/index.js";
 import { fetchRemotarJobs, isTechRemotarJob, normalizeRemotarJob } from "../../../packages/sources/remotar/index.js";
-import { isWithinNotificationWindow, readNotificationWindowConfig } from "./schedule.js";
+import { isWithinNotificationWindow, readNotificationWindowConfig, readWorkerSources, selectSourceForCycle } from "./schedule.js";
 import { connectDatabase } from "#root/services/database.js";
 import VagaModel from "#root/models/vaga.js";
 
@@ -41,12 +41,6 @@ const addJobKeys = (seen: Set<string>, job: Pick<JobDTO, "source" | "externalId"
   }
 };
 
-const parseSources = (): string[] =>
-  (process.env.JOB_SOURCES || "meupadrinho,remotar")
-    .split(",")
-    .map((source) => source.trim().toLowerCase())
-    .filter(Boolean);
-
 type FetchLike = typeof fetch;
 
 type SendJobCreatedWebhookOptions = {
@@ -73,6 +67,26 @@ const readBoolFlag = (
   if (value === undefined) return fallback;
   return ["1", "true", "yes", "on"].includes(value.toLowerCase());
 };
+
+const readCsv = (value: string | undefined, fallback: string[]): string[] =>
+  (value || fallback.join(","))
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const defaultMeuPadrinhoCargoFilters = [
+  "QA",
+  "BACKEND",
+  "FRONTEND",
+  "FULLSTACK",
+  "MOBILE",
+  "DEVOPS",
+  "DADOS",
+  "CX",
+  "SECURITY",
+  "IA",
+  "PRODUTO",
+];
 
 type StoredJobDeliveryState = {
   sent_discord?: boolean;
@@ -187,17 +201,21 @@ export const sendJobCreatedWebhook = async (
 let pendingWebhookJobs: JobDTO[] = [];
 
 export const runCycle = async (): Promise<void> => {
-  const allSources = parseSources();
-  // Alterna a fonte baseado no minuto atual (0, 15, 30, 45) para não sobrecarregar as APIs
-  const sourceIndex = Math.floor(new Date().getMinutes() / 15) % allSources.length;
-  const sources = [allSources[sourceIndex]];
+  const workerIntervalMs = Number(process.env.WORKER_INTERVAL_MS) || 10 * 60 * 1000;
+  const allSources = readWorkerSources();
+  const sources = [selectSourceForCycle(allSources, new Date(), workerIntervalMs)];
+  console.log(`🎯 Fonte do ciclo: ${sources[0]} (${allSources.join(" -> ")})`);
   
   const maxPages = Number(process.env.REMOTAR_MAX_PAGES || 3);
   const search = "";
   const categoryIds: number[] | undefined = undefined;
   const tagIds: number[] | undefined = undefined;
   const gupyMaxPages = Number(process.env.GUPY_MAX_PAGES_PER_KEYWORD || 1);
-  const meuPadrinhoMaxPages = Number(process.env.MEUPADRINHO_MAX_PAGES || 3);
+  const meuPadrinhoMaxPages = Number(process.env.MEUPADRINHO_MAX_PAGES || 10);
+  const meuPadrinhoCargoFilters = readCsv(
+    process.env.MEUPADRINHO_CARGO_FILTERS,
+    defaultMeuPadrinhoCargoFilters,
+  );
   const gupyKeywords = [
     "qa", "testes", "desenvolvedor", "desenvolvedora", "developer", "frontend", "backend", "fullstack", 
     "mobile", "android", "ios", "devops", "sre", "dados", "data", "analytics", "cientista de dados", 
@@ -287,7 +305,8 @@ export const runCycle = async (): Promise<void> => {
 
   const meuPadrinhoSourceJobs = sources.includes("meupadrinho")
     ? await fetchMeuPadrinhoJobs({
-        maxPages: Number.isFinite(meuPadrinhoMaxPages) ? meuPadrinhoMaxPages : 3,
+        maxPages: Number.isFinite(meuPadrinhoMaxPages) ? meuPadrinhoMaxPages : 10,
+        cargoFilters: meuPadrinhoCargoFilters,
         // não passar since para o meupadrinho por causa de fuso horário da API, o dedupe do worker lida com isso.
       })
     : [];
