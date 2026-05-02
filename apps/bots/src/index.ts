@@ -25,9 +25,10 @@ app.disable("x-powered-by");
 // Limita as requisições para evitar DDoS/Brute force
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  limit: 100, // limite por IP
+  limit: 150, // limite por IP
   standardHeaders: "draft-7",
   legacyHeaders: false,
+  skip: (req) => req.path === "/health" || req.path === "/ping",
 });
 app.use(limiter);
 

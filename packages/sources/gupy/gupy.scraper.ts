@@ -26,6 +26,7 @@ export type GupyScraperOptions = {
   state?: string;
   jobTypes?: string[];
   since?: Date;
+  keywordDelayMs?: number;
 };
 
 const buildGupyUrl = (keyword: string, offset: number, options: GupyScraperOptions): string => {
@@ -90,9 +91,16 @@ export const fetchGupyJobs = async (options: GupyScraperOptions = {}): Promise<S
   const keywords = options.keywords?.length ? options.keywords : ["desenvolvedor", "qa", "devops", "dados"];
   const maxPagesPerKeyword = Math.max(1, options.maxPagesPerKeyword ?? 1);
   const limit = Math.min(options.limit ?? DEFAULT_LIMIT, DEFAULT_LIMIT);
+  const keywordDelayMs = Math.max(0, Math.trunc(options.keywordDelayMs ?? 0));
   const jobs: SourceJob<GupyJob>[] = [];
+  
+  const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
   for (const keyword of keywords) {
+    if (keywordDelayMs > 0 && keyword !== keywords[0]) {
+      await sleep(keywordDelayMs);
+    }
+    
     for (let page = 0; page < maxPagesPerKeyword; page += 1) {
       try {
         const offset = page * limit;

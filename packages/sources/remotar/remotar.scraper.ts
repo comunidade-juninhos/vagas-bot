@@ -24,6 +24,7 @@ export type RemotarScraperOptions = {
   tagIds?: number[];
   categoryIds?: number[] | null;
   since?: Date;
+  pageDelayMs?: number;
 };
 
 const buildJobsUrl = (page: number, options: RemotarScraperOptions): string => {
@@ -90,10 +91,17 @@ const fetchJson = async <T>(url: string, schema: z.ZodType<T>): Promise<T> => {
 
 export const fetchRemotarJobs = async (options: RemotarScraperOptions = {}): Promise<SourceJob<RemotarJob>[]> => {
   const maxPages = Math.max(1, options.maxPages ?? 1);
+  const pageDelayMs = Math.max(0, Math.trunc(options.pageDelayMs ?? 0));
   const jobs: SourceJob<RemotarJob>[] = [];
+
+  const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
   for (let page = 1; page <= maxPages; page += 1) {
     try {
+      if (pageDelayMs > 0 && page > 1) {
+        await sleep(pageDelayMs);
+      }
+      
       const payload = await fetchJson(buildJobsUrl(page, options), remotarJobsResponseSchema);
       let reachedOldJobs = false;
 

@@ -206,12 +206,12 @@ export const runCycle = async (): Promise<void> => {
   const sources = [selectSourceForCycle(allSources, new Date(), workerIntervalMs)];
   console.log(`🎯 Fonte do ciclo: ${sources[0]} (${allSources.join(" -> ")})`);
   
-  const maxPages = Number(process.env.REMOTAR_MAX_PAGES || 3);
+  const maxPages = Number(process.env.REMOTAR_MAX_PAGES || 2);
   const search = "";
   const categoryIds: number[] | undefined = undefined;
   const tagIds: number[] | undefined = undefined;
   const gupyMaxPages = Number(process.env.GUPY_MAX_PAGES_PER_KEYWORD || 1);
-  const meuPadrinhoMaxPages = Number(process.env.MEUPADRINHO_MAX_PAGES || 10);
+  const meuPadrinhoMaxPages = Number(process.env.MEUPADRINHO_MAX_PAGES || 2);
   const meuPadrinhoCargoFilters = readCsv(
     process.env.MEUPADRINHO_CARGO_FILTERS,
     defaultMeuPadrinhoCargoFilters,
@@ -291,6 +291,7 @@ export const runCycle = async (): Promise<void> => {
         categoryIds,
         tagIds,
         since,
+        pageDelayMs: 1000,
       })
     : [];
 
@@ -300,13 +301,20 @@ export const runCycle = async (): Promise<void> => {
         maxPagesPerKeyword: Number.isFinite(gupyMaxPages) ? gupyMaxPages : 5,
         workplaceTypes: gupyWorkplaceTypes,
         since,
+        keywordDelayMs: 1000,
       })
     : [];
 
   const meuPadrinhoSourceJobs = sources.includes("meupadrinho")
     ? await fetchMeuPadrinhoJobs({
-        maxPages: Number.isFinite(meuPadrinhoMaxPages) ? meuPadrinhoMaxPages : 10,
+        maxPages: Number.isFinite(meuPadrinhoMaxPages) ? meuPadrinhoMaxPages : 2,
         cargoFilters: meuPadrinhoCargoFilters,
+        detailConcurrency: 1,
+        listDelayMs: 1000,
+        listRetryDelayMs: 3000,
+        detailRetryDelayMs: 3000,
+        detailRetries: 3,
+        detailDelayMs: 1500,
         // não passar since para o meupadrinho por causa de fuso horário da API, o dedupe do worker lida com isso.
       })
     : [];

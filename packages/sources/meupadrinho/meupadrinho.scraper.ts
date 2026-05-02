@@ -11,9 +11,11 @@ export type MeuPadrinhoScraperOptions = {
   cargoFilters?: string[];
   listRetries?: number;
   listRetryDelayMs?: number;
+  listDelayMs?: number;
   detailConcurrency?: number;
   detailRetries?: number;
   detailRetryDelayMs?: number;
+  detailDelayMs?: number;
 };
 
 type MeuPadrinhoListResponse = {
@@ -131,9 +133,11 @@ export async function fetchMeuPadrinhoJobs(
   const maxPages = Math.max(1, options.maxPages ?? 3);
   const listRetries = Math.max(0, Math.trunc(options.listRetries ?? 2));
   const listRetryDelayMs = Math.max(0, Math.trunc(options.listRetryDelayMs ?? 1500));
+  const listDelayMs = Math.max(0, Math.trunc(options.listDelayMs ?? 0));
   const detailConcurrency = readPositiveInt(options.detailConcurrency, 2);
   const detailRetries = Math.max(0, Math.trunc(options.detailRetries ?? 2));
   const detailRetryDelayMs = Math.max(0, Math.trunc(options.detailRetryDelayMs ?? 1500));
+  const detailDelayMs = Math.max(0, Math.trunc(options.detailDelayMs ?? 0));
   const cargoFilters = uniqueCargoFilters(options.cargoFilters);
   const listQueries = [undefined, ...cargoFilters];
   const listItems: Array<Pick<MeuPadrinhoJob, "nano_id" | "horario_registro" | "vaga_encerrada">> = [];
@@ -141,6 +145,10 @@ export async function fetchMeuPadrinhoJobs(
 
   for (const cargoFilter of listQueries) {
     for (let page = 0; page < maxPages; page += 1) {
+      if (listDelayMs > 0 && (cargoFilter !== listQueries[0] || page > 0)) {
+        await sleep(listDelayMs);
+      }
+      
       const data = await fetchListWithRetry(
         buildListUrl(page, cargoFilter),
         page,
@@ -171,8 +179,11 @@ export async function fetchMeuPadrinhoJobs(
 
   const limit = pLimit(detailConcurrency);
   const details = await Promise.all(
-    listItems.map((item) =>
+    listItems.map((item, index) =>
       limit(async (): Promise<SourceJob<MeuPadrinhoJob> | null> => {
+        if (index > 0 && detailDelayMs > 0) {
+          await sleep(detailDelayMs);
+        }
         const detail = await fetchDetailWithRetry(item.nano_id, detailRetries, detailRetryDelayMs);
         if (!detail) return null;
 
