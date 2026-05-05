@@ -78,6 +78,27 @@ function renderWhatsAppPairingPage(): string {
   `;
 }
 
+async function startKeepAlive() {
+  const url = process.env.RENDER_EXTERNAL_URL || process.env.PUBLIC_URL;
+  if (!url) {
+    console.log("ℹ️ [keep-alive] RENDER_EXTERNAL_URL não definida. Ignorando auto-ping.");
+    return;
+  }
+
+  console.log(`⏱️ [keep-alive] monitorando: ${url}/ping (a cada 10 min)`);
+  
+  setInterval(async () => {
+    try {
+      const res = await fetch(`${url}/ping`);
+      if (res.ok) {
+        console.log(`💓 [keep-alive] self-ping OK (${new Date().toLocaleTimeString()})`);
+      }
+    } catch (err) {
+      console.error("⚠️ [keep-alive] erro no self-ping:", err instanceof Error ? err.message : err);
+    }
+  }, 10 * 60 * 1000); // 10 minutos
+}
+
 async function start() {
   console.log("🚀 [bots] iniciando serviço de bots...");
 
@@ -120,6 +141,7 @@ async function start() {
 
   app.listen(config.port, () => {
     console.log(`📡 [bots] ouvindo na porta ${config.port}`);
+    startKeepAlive();
   });
 }
 
