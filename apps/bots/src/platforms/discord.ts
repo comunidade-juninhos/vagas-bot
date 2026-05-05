@@ -91,7 +91,13 @@ export async function buildDiscordJobPayload(job: JobDTO) {
                 .setStyle(ButtonStyle.Link),
         );
 
-    return { embeds: [embed], components: [row] };
+    const payload: any = { embeds: [embed], components: [row] };
+    
+    if (config.discord.mentionRole) {
+        payload.content = `<@&${config.discord.mentionRole}>`;
+    }
+
+    return payload;
 }
 
 function buildFooter(notification: NotificationJob) {

@@ -15,7 +15,8 @@ export const config = {
   discord: {
     enabled: envFlag("DISCORD_ENABLED", true),
     token: process.env.DISCORD_TOKEN,
-    channelId: process.env.DISCORD_CHANNEL_ID
+    channelId: process.env.DISCORD_CHANNEL_ID,
+    mentionRole: process.env.DISCORD_MENTION_ROLE
   },
   webhook: {
     secret: process.env.WEBHOOK_SECRET
