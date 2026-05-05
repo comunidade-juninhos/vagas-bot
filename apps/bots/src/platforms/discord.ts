@@ -4,6 +4,7 @@ import 'dotenv/config';
 import { buildNotificationJob } from '../../../../packages/core/notification.js';
 import type { NotificationJob } from '../../../../packages/core/notification.js';
 import type { JobDTO } from '../../../../packages/core/types.js';
+import { config } from '../config/index.js';
 
 // função para ligar o bot do discord
 export async function connectDiscord() {
