@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import type { Client } from 'discord.js';
 import { getPendingDiscordVagas, updateVagaStatus } from '#root/services/vagaService.js';
 import { config } from '../config/index.js';
+import { sendWhatsAppBatch } from '../platforms/whatsapp.js';
 
 /**
  * Inicia o agendador de tarefas curadas
@@ -51,6 +52,11 @@ export async function sendBatchDigest(client: Client, limit: number = 5) {
         message += `*Fique ligado! O próximo lote de vagas chega em algumas horas.* ⏳`;
 
         await (channel as any).send(message);
+
+        // Envia para o WhatsApp se configurado
+        if (config.whatsapp.enabled && config.whatsapp.groupId) {
+            await sendWhatsAppBatch(jobs, config.whatsapp.groupId);
+        }
 
         // Marca as vagas como enviadas no banco para não repetir no próximo lote
         for (const job of jobs) {

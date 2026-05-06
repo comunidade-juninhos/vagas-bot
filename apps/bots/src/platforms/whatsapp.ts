@@ -311,6 +311,38 @@ export async function sendJob(job: JobDTO, jid: string) {
             await forceRepairSession(shouldRepairByError ? detail : "muitas falhas consecutivas de envio");
         }
 
+    }
+}
+
+/**
+ * Envia um lote de vagas em uma única mensagem no WhatsApp
+ */
+export async function sendWhatsAppBatch(jobs: JobDTO[], jid: string) {
+    if (!socketInstance) {
+        console.error("❌ [whatsapp] socket não inicializado para envio de lote");
+        return false;
+    }
+
+    if (!isReady) {
+        console.log("⏳ [whatsapp] bot ainda não está pronto para o lote");
+        return false;
+    }
+
+    try {
+        let message = `🚀 *TOP VAGAS DO MOMENTO*\n`;
+        message += `Selecionamos *${jobs.length}* novas oportunidades exclusivas para vocês!\n\n`;
+
+        for (const job of jobs) {
+            message += `✅ *${job.title}*\n🏢 ${job.company}\n🔗 ${job.url}\n\n`;
+        }
+
+        message += `_Fique ligado! O próximo lote chega em algumas horas._ ⏳`;
+
+        await socketInstance.sendMessage(jid, { text: message });
+        console.log(`✅ [whatsapp] Lote enviado para: ${jid}`);
+        return true;
+    } catch (error) {
+        console.error(`❌ [whatsapp] erro ao enviar lote:`, error);
         return false;
     }
 }
