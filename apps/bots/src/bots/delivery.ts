@@ -52,8 +52,8 @@ export async function deliverJobCreated(
   }
 
   const delivery: DeliveryMap = {
-    discord: channelDisabled(channels.discord) ? "disabled" : "pending",
-    whatsapp: channelDisabled(channels.whatsapp) ? "disabled" : "pending"
+    discord: channelDisabled(channels.discord) ? "disabled" : "skipped",
+    whatsapp: channelDisabled(channels.whatsapp) ? "disabled" : "skipped"
   };
 
   if (delivery.discord === "pending" && vaga.sent_discord) {

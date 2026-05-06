@@ -5,6 +5,7 @@ import {
   listVagas,
   listRecentVagas,
   listVagasForDigest,
+  listPendingDiscordVagas,
   updateVagaStatus as updateVagaRepo
 } from "../repository/vagaRepository.js";
 
@@ -130,6 +131,10 @@ export async function getRecentVagas(limit?: unknown) {
 
 export async function getVagasForDigest(since: Date) {
   return listVagasForDigest(since);
+}
+
+export async function getPendingDiscordVagas(limit: number = 5) {
+  return listPendingDiscordVagas(limit);
 }
 
 export async function updateVagaStatus(id: unknown, data: QueryRecord) {

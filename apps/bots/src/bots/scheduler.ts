@@ -1,62 +1,64 @@
 import cron from 'node-cron';
 import type { Client } from 'discord.js';
-import { getVagasForDigest } from '#root/services/vagaService.js';
+import { getPendingDiscordVagas, updateVagaStatus } from '#root/services/vagaService.js';
 import { config } from '../config/index.js';
 
 /**
- * Inicia o agendador de tarefas
+ * Inicia o agendador de tarefas curadas
  */
 export function startScheduler(discordClient: Client) {
-    // Agendado para as 09:00 todos os dias no fuso de Brasília
-    cron.schedule('0 9 * * *', async () => {
-        console.log('⏰ [scheduler] Iniciando resumo diário de vagas...');
-        await sendDailyDigest(discordClient);
+    // Agendado para 09h, 13h, 18h e 21h todos os dias
+    // O padrão cron: minuto hora dia-do-mês mês dia-da-semana
+    cron.schedule('0 9,13,18,21 * * *', async () => {
+        const hour = new Date().getHours();
+        console.log(`⏰ [scheduler] Iniciando lote das ${hour}h...`);
+        await sendBatchDigest(discordClient, 5);
     }, {
         timezone: "America/Sao_Paulo"
     });
 
-    console.log('📅 [scheduler] Agendador iniciado (Resumo diário às 09:00)');
+    console.log('📅 [scheduler] Agendador de Lotes iniciado (09h, 13h, 18h, 21h)');
 }
 
 /**
- * Busca vagas das últimas 24h e envia um resumo com ping
+ * Busca X vagas pendentes e envia um lote com ping
  */
-export async function sendDailyDigest(client: Client) {
+export async function sendBatchDigest(client: Client, limit: number = 5) {
     if (!config.discord.enabled || !config.discord.channelId || !config.discord.mentionRole) {
-        console.log('⚠️ [scheduler] Discord ou Cargo de Menção não configurados. Pulando resumo.');
+        console.log('⚠️ [scheduler] Discord não configurado corretamente. Pulando lote.');
         return;
     }
 
     try {
-        const twentyFourHoursAgo = new Date();
-        twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
-
-        const jobs = await getVagasForDigest(twentyFourHoursAgo);
+        // Busca as vagas que ainda não foram enviadas
+        const jobs = await getPendingDiscordVagas(limit);
 
         if (jobs.length === 0) {
-            console.log('ℹ️ [scheduler] Nenhuma vaga nova encontrada nas últimas 24h. Pulando ping.');
+            console.log('ℹ️ [scheduler] Nenhuma vaga nova pendente no banco. Pulando lote.');
             return;
         }
 
         const channel = await client.channels.fetch(config.discord.channelId);
         if (!channel || !("send" in channel)) return;
 
-        let message = `🚀 **RESUMO DE VAGAS DO DIA** <@&${config.discord.mentionRole}>\n`;
-        message += `Encontramos **${jobs.length}** novas oportunidades nas últimas 24 horas!\n\n`;
+        let message = `🚀 **TOP VAGAS DO MOMENTO** <@&${config.discord.mentionRole}>\n`;
+        message += `Selecionamos **${jobs.length}** novas oportunidades exclusivas para vocês!\n\n`;
 
-        // Listar as 15 primeiras para não estourar o limite de caracteres do Discord
-        const displayedJobs = jobs.slice(0, 15);
-        for (const job of displayedJobs) {
+        for (const job of jobs) {
             message += `• **${job.title}** (${job.company})\n  🔗 <${job.url}>\n\n`;
         }
 
-        if (jobs.length > 15) {
-            message += `*... e outras ${jobs.length - 15} vagas que você pode conferir subindo as mensagens deste canal!* 👆`;
-        }
+        message += `*Fique ligado! O próximo lote de vagas chega em algumas horas.* ⏳`;
 
         await (channel as any).send(message);
-        console.log(`✅ [scheduler] Resumo diário enviado (${jobs.length} vagas)`);
+
+        // Marca as vagas como enviadas no banco para não repetir no próximo lote
+        for (const job of jobs) {
+            await updateVagaStatus(job._id, { sent_discord: true });
+        }
+
+        console.log(`✅ [scheduler] Lote enviado com ${jobs.length} vagas.`);
     } catch (error) {
-        console.error('❌ [scheduler] Erro ao enviar resumo diário:', error instanceof Error ? error.message : String(error));
+        console.error('❌ [scheduler] Erro ao enviar lote:', error instanceof Error ? error.message : String(error));
     }
 }

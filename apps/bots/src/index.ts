@@ -131,9 +131,9 @@ async function start() {
   // Rota temporária para testar o resumo diário
   app.get("/test/digest", async (_req: Request, res: Response) => {
     if (discordClient) {
-      const { sendDailyDigest } = await import("./bots/scheduler.js");
-      await sendDailyDigest(discordClient);
-      return res.send("✅ Comandado envio do resumo diário!");
+      const { sendBatchDigest } = await import("./bots/scheduler.js");
+      await sendBatchDigest(discordClient, 5);
+      return res.send("✅ Comandado envio do lote de teste (5 vagas)!");
     }
     res.status(400).send("❌ Discord não conectado.");
   });

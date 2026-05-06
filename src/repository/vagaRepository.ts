@@ -235,3 +235,11 @@ export async function listVagasForDigest(since: Date) {
     .lean()
     .maxTimeMS(8000);
 }
+
+export async function listPendingDiscordVagas(limit: number = 5) {
+  return VagaModel.find({ sent_discord: { $ne: true } })
+    .sort({ createdAt: -1 }) // Pega as mais recentes primeiro
+    .limit(limit)
+    .lean()
+    .maxTimeMS(8000);
+}

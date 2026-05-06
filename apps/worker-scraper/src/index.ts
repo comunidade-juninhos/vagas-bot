@@ -206,12 +206,12 @@ export const runCycle = async (): Promise<void> => {
   const sources = [selectSourceForCycle(allSources, new Date(), workerIntervalMs)];
   console.log(`🎯 Fonte do ciclo: ${sources[0]} (${allSources.join(" -> ")})`);
   
-  const maxPages = Number(process.env.REMOTAR_MAX_PAGES || 2);
+  const maxPages = Number(process.env.REMOTAR_MAX_PAGES || 1);
   const search = "";
   const categoryIds: number[] | undefined = undefined;
   const tagIds: number[] | undefined = undefined;
   const gupyMaxPages = Number(process.env.GUPY_MAX_PAGES_PER_KEYWORD || 1);
-  const meuPadrinhoMaxPages = Number(process.env.MEUPADRINHO_MAX_PAGES || 2);
+  const meuPadrinhoMaxPages = Number(process.env.MEUPADRINHO_MAX_PAGES || 1);
   const meuPadrinhoCargoFilters = readCsv(
     process.env.MEUPADRINHO_CARGO_FILTERS,
     defaultMeuPadrinhoCargoFilters,
@@ -224,7 +224,7 @@ export const runCycle = async (): Promise<void> => {
     "node", "react"
   ];
   const gupyWorkplaceTypes: string[] | undefined = undefined;
-  const webhookLimit = Number(process.env.WEBHOOK_MAX_JOBS_PER_RUN || 50);
+  const webhookLimit = Number(process.env.WEBHOOK_MAX_JOBS_PER_RUN || 10);
   const webhookDelayMs = Number(process.env.WEBHOOK_DELAY_MS || 1000);
   const notificationWindow = readNotificationWindowConfig();
   const canSendWebhooksNow = isWithinNotificationWindow(new Date(), notificationWindow);
