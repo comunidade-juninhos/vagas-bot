@@ -14,8 +14,8 @@ export async function connectDiscord() {
     }
 
     // configura as permissões (intents) do bot
-    const client = new Client({ 
-        intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages] 
+    const client = new Client({
+        intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
     });
 
     // avisa quando o bot estiver pronto
@@ -92,13 +92,7 @@ export async function buildDiscordJobPayload(job: JobDTO) {
                 .setStyle(ButtonStyle.Link),
         );
 
-    const payload: any = { embeds: [embed], components: [row] };
-    
-    if (config.discord.mentionRole) {
-        payload.content = `<@&${config.discord.mentionRole}>`;
-    }
-
-    return payload;
+    return { embeds: [embed], components: [row] };
 }
 
 function buildFooter(notification: NotificationJob) {

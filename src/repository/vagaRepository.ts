@@ -227,3 +227,11 @@ export async function listRecentVagas(limit: unknown = DEFAULT_LIMIT) {
     .lean()
     .maxTimeMS(8000);
 }
+
+export async function listVagasForDigest(since: Date) {
+  return VagaModel.find({ createdAt: { $gte: since } })
+    .select("title company url source")
+    .sort({ createdAt: -1 })
+    .lean()
+    .maxTimeMS(8000);
+}

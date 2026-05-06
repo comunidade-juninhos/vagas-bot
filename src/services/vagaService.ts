@@ -4,6 +4,7 @@ import {
   createVagaIfNotExists,
   listVagas,
   listRecentVagas,
+  listVagasForDigest,
   updateVagaStatus as updateVagaRepo
 } from "../repository/vagaRepository.js";
 
@@ -125,6 +126,10 @@ export async function getRecentVagas(limit?: unknown) {
   setCache(key, result);
 
   return result;
+}
+
+export async function getVagasForDigest(since: Date) {
+  return listVagasForDigest(since);
 }
 
 export async function updateVagaStatus(id: unknown, data: QueryRecord) {

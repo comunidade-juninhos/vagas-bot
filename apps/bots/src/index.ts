@@ -13,6 +13,7 @@ import { connectDiscord } from "./platforms/discord.js";
 import { config } from "./config/index.js";
 import { connectDatabase } from "#root/services/database.js";
 import { createJobsWebhookRouter } from "./webhooks/jobs.js";
+import { startScheduler } from "./bots/scheduler.js";
 
 const app = express();
 
@@ -126,6 +127,16 @@ async function start() {
   app.get("/ping", (_req: Request, res: Response) => res.send("pong"));
   app.get("/codigo", (_req: Request, res: Response) => res.redirect("/whatsapp/pairing"));
   app.get("/whatsapp/pairing", (_req: Request, res: Response) => res.send(renderWhatsAppPairingPage()));
+  
+  // Rota temporária para testar o resumo diário
+  app.get("/test/digest", async (_req: Request, res: Response) => {
+    if (discordClient) {
+      const { sendDailyDigest } = await import("./bots/scheduler.js");
+      await sendDailyDigest(discordClient);
+      return res.send("✅ Comandado envio do resumo diário!");
+    }
+    res.status(400).send("❌ Discord não conectado.");
+  });
 
   app.get("/whatsapp/reset", async (_req: Request, res: Response) => {
     if (!config.whatsapp.enabled) {
@@ -142,6 +153,11 @@ async function start() {
   app.listen(config.port, () => {
     console.log(`📡 [bots] ouvindo na porta ${config.port}`);
     startKeepAlive();
+    
+    // Inicia o agendador se o Discord estiver ativo
+    if (discordClient) {
+      startScheduler(discordClient);
+    }
   });
 }
 
