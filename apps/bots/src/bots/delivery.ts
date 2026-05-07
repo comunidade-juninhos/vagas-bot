@@ -27,16 +27,28 @@ const allEnabledChannelsDone = (delivery: DeliveryMap) =>
     ["sent", "already_sent", "disabled", "not_configured"].includes(status)
   );
 
+import { filterJuniorAndIntern } from "#root/services/vagaService.js";
+
 export async function deliverJobCreated(
   job: JobDTO,
   {
     repository,
-    channels,
   }: {
     repository: DeliveryRepository;
-    channels: Record<"discord" | "whatsapp", DeliveryChannel>;
   },
 ) {
+  // 1. FILTRO SNIPER NA ENTRADA
+  // Se não for Júnior/Estágio/Trainee, nem salvamos no banco para o lote.
+  if (!filterJuniorAndIntern(job)) {
+    console.log(`🚫 [delivery] Vaga ignorada pelo filtro Sniper (Sênior ou irrelevante): ${job.title}`);
+    return {
+      ok: true,
+      status: "ignored_by_filter",
+      delivery: { discord: "skipped", whatsapp: "skipped" }
+    };
+  }
+
+  // 2. PERSISTÊNCIA
   const result = await repository.createVaga(job);
   const vaga = result.vaga;
 
@@ -44,69 +56,18 @@ export async function deliverJobCreated(
     return {
       ok: false,
       status: "persistence_failed",
-      delivery: {
-        discord: "skipped",
-        whatsapp: "skipped"
-      }
+      delivery: { discord: "skipped", whatsapp: "skipped" }
     };
   }
 
-  const delivery: DeliveryMap = {
-    discord: channelDisabled(channels.discord) ? "disabled" : "skipped",
-    whatsapp: channelDisabled(channels.whatsapp) ? "disabled" : "skipped"
-  };
-
-  if (delivery.discord === "pending" && vaga.sent_discord) {
-    delivery.discord = "already_sent";
-  }
-
-  if (delivery.whatsapp === "pending" && vaga.sent_whatsapp) {
-    delivery.whatsapp = "already_sent";
-  }
-
-  if (!result.created && allEnabledChannelsDone(delivery)) {
-    return {
-      ok: true,
-      status: "already_processed",
-      delivery
-    };
-  }
-
-  if (delivery.discord === "pending") {
-    if (!channelReady(channels.discord, ["client", "channelId"])) {
-      delivery.discord = "not_configured";
-    } else {
-      const success = await channels.discord.send!(
-        channels.discord.client,
-        job,
-        channels.discord.channelId
-      );
-      delivery.discord = success ? "sent" : "failed";
-
-      if (success) {
-        await repository.updateVagaStatus(vaga._id, { sent_discord: true });
-      }
-    }
-  }
-
-  if (delivery.whatsapp === "pending") {
-    if (!channelReady(channels.whatsapp, ["groupId"])) {
-      delivery.whatsapp = "not_configured";
-    } else {
-      const success = await channels.whatsapp.send!(job, channels.whatsapp.groupId);
-      delivery.whatsapp = success ? "sent" : "failed";
-
-      if (success) {
-        await repository.updateVagaStatus(vaga._id, { sent_whatsapp: true });
-      }
-    }
-  }
-
-  const hasFailure = Object.values(delivery).includes("failed");
-
+  // 3. ENVIO IMEDIATO DESATIVADO
+  // Agora o envio é feito exclusivamente pelo scheduler em 4 horários específicos.
   return {
-    ok: !hasFailure,
-    status: hasFailure ? "partial" : result.created ? "created" : "retry",
-    delivery
+    ok: true,
+    status: result.created ? "created" : "already_exists",
+    delivery: {
+      discord: "pending_batch",
+      whatsapp: "pending_batch"
+    }
   };
 }

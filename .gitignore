@@ -143,5 +143,7 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
-auth_info/
+
+# Experimental
+apps/experimental/
 

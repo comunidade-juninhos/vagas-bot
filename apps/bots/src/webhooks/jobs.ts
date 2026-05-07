@@ -24,7 +24,6 @@ type DeliverFn = (
       createVaga: typeof createVaga;
       updateVagaStatus: typeof updateVagaStatus;
     };
-    channels: any;
   },
 ) => Promise<DeliverResult>;
 
@@ -154,19 +153,6 @@ export function createJobsWebhookRouter({
         repository: {
           createVaga,
           updateVagaStatus
-        },
-        channels: {
-          discord: {
-            enabled: config.discord.enabled,
-            client: discordClient,
-            channelId: config.discord.channelId,
-            send: sendJobDiscord
-          },
-          whatsapp: {
-            enabled: config.whatsapp.enabled,
-            groupId: config.whatsapp.groupId,
-            send: sendJob
-          }
         }
       });
 

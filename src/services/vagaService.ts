@@ -129,12 +129,69 @@ export async function getRecentVagas(limit?: unknown) {
   return result;
 }
 
+// =========================
+// Sniper Filter: Junior & Estágio
+// =========================
+export function filterJuniorAndIntern(job: any): boolean {
+  const title = String(job.title || "").toLowerCase();
+  
+  // 1. BLACKLIST AGRESSIVA: Se tiver qualquer termo de senioridade alta ou liderança, descarta.
+  const blacklist = [
+    'senior', 'sênior', 'sr', 'sr.', 'pleno', 'pl', 'specialist', 'especialista', 
+    'lead', 'lider', 'líder', 'manager', 'gerente', 'coordenador', 'coordinator',
+    'tech lead', 'principal', 'staff', 'expert', 'iii', 'iv', 'v', 'n3', 'n4',
+    'specialist', 'arquitetura', 'architecture', 'architect', 'arquiteto',
+    'consultant', 'consultor', 'head', 'diretor', 'director', 'vp', 'cto'
+  ];
+  
+  const hasBlacklist = blacklist.some(term => {
+    const regex = new RegExp(`\\b${term}\\b`, 'i');
+    return regex.test(title);
+  });
+
+  if (hasBlacklist) return false;
+
+  // 2. WHITELIST: Se tiver termos explícitos de junior/estágio/trainee, aceita NA HORA.
+  const whitelist = [
+    'junior', 'júnior', 'jr', 'jr.', 'estagio', 'estágio', 'estagiario', 'estagiário', 
+    'estagiaria', 'estagiária', 'intern', 'internship', 'trainee', 'aprendiz', 
+    'beginner', 'iniciante', 'entry', 'i', 'n1', 'lvl 1', 'level 1', 'nível 1', 'nível i'
+  ];
+
+  const hasWhitelist = whitelist.some(term => {
+    const regex = new RegExp(`\\b${term}\\b`, 'i');
+    return regex.test(title);
+  });
+
+  if (hasWhitelist) return true;
+
+  // 3. FILTRO DE NEUTRALIDADE (Onde mora o perigo)
+  // Se não tem nível definido (ex: "Dev Java"), olhamos se o título não parece "avançado" demais.
+  const suspectTerms = ['especialista', 'expert', 'cloud', 'architecture', 'patterns', 'advanced'];
+  const isSuspect = suspectTerms.some(term => title.includes(term));
+
+  if (isSuspect) return false;
+
+  // Se passou pela blacklist e não é suspeito (vaga "neutra"), deixamos passar.
+  return true; 
+}
+
 export async function getVagasForDigest(since: Date) {
   return listVagasForDigest(since);
 }
 
+/**
+ * Busca apenas vagas que passam no filtro Sniper e respeita o limite (ex: 5)
+ */
 export async function getPendingDiscordVagas(limit: number = 5) {
-  return listPendingDiscordVagas(limit);
+  // Buscamos um lote maior (ex: 50) para garantir que após o filtro tenhamos o suficiente
+  const rawJobs = await listPendingDiscordVagas(50);
+  
+  // Aplica o filtro Sniper
+  const filtered = rawJobs.filter(filterJuniorAndIntern);
+  
+  // Retorna apenas as primeiras X vagas do filtro
+  return filtered.slice(0, limit);
 }
 
 export async function updateVagaStatus(id: unknown, data: QueryRecord) {
