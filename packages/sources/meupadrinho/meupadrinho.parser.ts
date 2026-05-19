@@ -41,13 +41,18 @@ const mapWorkMode = (value: string | null | undefined): WorkMode => {
 };
 
 const mapSeniority = (value: string | null | undefined, title: string, description?: string): Seniority => {
+  const titleOrDescSeniority = detectSeniority(title, description);
+  if (titleOrDescSeniority === "mid" || titleOrDescSeniority === "senior") {
+    return titleOrDescSeniority;
+  }
+
   const normalized = value?.toLowerCase() ?? "";
   if (normalized.includes("estágio") || normalized.includes("estagio")) return "intern";
   if (normalized.includes("júnior") || normalized.includes("junior")) return "junior";
   if (normalized.includes("pleno") || normalized.includes("mid")) return "mid";
   if (normalized.includes("sênior") || normalized.includes("senior")) return "senior";
-  // fallback pra nossa deteccao inteligente caso a api do meupadrinho nao informe o nivel
-  return detectSeniority(title, description);
+  
+  return titleOrDescSeniority;
 };
 
 const joinSections = (job: MeuPadrinhoJob): string | undefined => {

@@ -284,7 +284,8 @@ export const runCycle = async (): Promise<void> => {
   const retryExistingJobs = existingDbJobs
     .filter((job) => shouldRetryStoredJobDelivery(job))
     .map((job) => storedJobToDTO(job))
-    .filter((job): job is JobDTO => Boolean(job));
+    .filter((job): job is JobDTO => Boolean(job))
+    .filter((job) => allowedSeniorities.includes(job.seniority));
 
   const remotarSourceJobs = sources.includes("remotar")
     ? await fetchRemotarJobs({

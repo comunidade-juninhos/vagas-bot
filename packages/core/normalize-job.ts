@@ -86,7 +86,27 @@ export const stripHtml = (html: string): string => {
     .trim();
 };
 
+export const detectExperienceYears = (text: string): number | null => {
+  const rel1 = /\b([3-9]|\d{2})\s*\+?\s*(?:anos?|years?)\s+(?:de\s+|of\s+|em\s+|in\s+)?(?:experi[eê]ncia|atua[cç][aã]o|pr[aá]tica|trabalho|desenvolvimento|experiency|experience|work)\b/i;
+  let match = text.match(rel1);
+  if (match) return parseInt(match[1], 10);
+
+  const rel2 = /\b(?:experi[eê]ncia|atua[cç][aã]o|pr[aá]tica|trabalho|experience|work|m[ií]nimo|minimum|pelo\s+menos|at\s+least)\s+(?:m[ií]nima\s+)?(?:de\s+|of\s+|em\s+|in\s+)?(?:pelo\s+menos\s+)?([3-9]|\d{2})\s*(?:anos?|years?)\b/i;
+  match = text.match(rel2);
+  if (match) return parseInt(match[1], 10);
+
+  return null;
+};
+
 export const detectSeniority = (titleText: string, descriptionText?: string): Seniority => {
+  if (descriptionText) {
+    const years = detectExperienceYears(descriptionText);
+    if (years !== null) {
+      if (years >= 5) return "senior";
+      if (years >= 3) return "mid";
+    }
+  }
+
   if (/est[aá]gio|\bintern(ship)?\b|trainee/i.test(titleText)) return "intern";
   if (/j[uú]nior|\bjr\b|junior/i.test(titleText)) return "junior";
   if (/pleno|\bpl\b|\bmid\b/i.test(titleText)) return "mid";

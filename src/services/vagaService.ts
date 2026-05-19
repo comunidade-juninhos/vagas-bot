@@ -133,6 +133,17 @@ export async function getRecentVagas(limit?: unknown) {
 // Sniper Filter: Junior & Estágio
 // =========================
 export function filterJuniorAndIntern(job: any): boolean {
+  // 0. VALIDAÇÃO DE SENIORIDADE CONFIGURADA (Filtro Estrito)
+  if (job.seniority) {
+    const allowed = (process.env.ALLOWED_SENIORITIES || "intern,junior")
+      .split(",")
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean);
+    if (!allowed.includes(job.seniority.toLowerCase())) {
+      return false;
+    }
+  }
+
   const title = String(job.title || "").toLowerCase();
   
   // 1. BLACKLIST AGRESSIVA: Se tiver qualquer termo de senioridade alta ou liderança, descarta.

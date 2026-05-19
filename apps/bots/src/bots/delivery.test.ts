@@ -8,17 +8,17 @@ const job = {
   company: "Acme",
   location: "Remoto",
   workMode: "remote",
-  seniority: "mid",
+  seniority: "junior",
   url: "https://acme.gupy.io/job/123",
   description: "Node.js e TypeScript",
   stack: ["node", "typescript"],
   scrapedAt: new Date("2026-04-30T12:00:00.000Z")
 };
 
-const createRepository = ({ created = true, vaga = {} } = {}) => ({
+const createRepository = ({ created = true, vaga = {} as any } = {}) => ({
   createVaga: vi.fn(async () => ({
     created,
-    vaga: {
+    vaga: vaga === null ? null : {
       _id: "vaga-1",
       sent_whatsapp: false,
       sent_discord: false,
@@ -29,103 +29,73 @@ const createRepository = ({ created = true, vaga = {} } = {}) => ({
 });
 
 describe("deliverJobCreated", () => {
-  it("sends new jobs to Discord while WhatsApp is disabled", async () => {
+  it("persists new jobs and enqueues them for the batch digest", async () => {
     const repository = createRepository();
-    const discordSend = vi.fn(async () => true);
-    const whatsappSend = vi.fn(async () => true);
 
-    const result = await deliverJobCreated(job, {
-      repository,
-      channels: {
-        discord: {
-          enabled: true,
-          client: { id: "discord-client" },
-          channelId: "discord-channel",
-          send: discordSend
-        },
-        whatsapp: {
-          enabled: false,
-          groupId: "whatsapp-group",
-          send: whatsappSend
-        }
-      }
-    });
+    const result = await deliverJobCreated(job, { repository });
 
     expect(result).toEqual({
       ok: true,
       status: "created",
       delivery: {
-        discord: "sent",
-        whatsapp: "disabled"
+        discord: "pending_batch",
+        whatsapp: "pending_batch"
       }
     });
-    expect(discordSend).toHaveBeenCalledWith({ id: "discord-client" }, job, "discord-channel");
-    expect(whatsappSend).not.toHaveBeenCalled();
-    expect(repository.updateVagaStatus).toHaveBeenCalledWith("vaga-1", { sent_discord: true });
+    expect(repository.createVaga).toHaveBeenCalledWith(job);
   });
 
-  it("does not resend a job that was already delivered to all enabled channels", async () => {
+  it("returns already_exists for existing jobs and still enqueues them if not sent", async () => {
     const repository = createRepository({
       created: false,
       vaga: {
-        sent_discord: true,
+        sent_discord: false,
         sent_whatsapp: false
       }
     });
-    const discordSend = vi.fn(async () => true);
 
-    const result = await deliverJobCreated(job, {
-      repository,
-      channels: {
-        discord: {
-          enabled: true,
-          client: { id: "discord-client" },
-          channelId: "discord-channel",
-          send: discordSend
-        },
-        whatsapp: {
-          enabled: false,
-          groupId: undefined,
-          send: vi.fn()
-        }
+    const result = await deliverJobCreated(job, { repository });
+
+    expect(result).toEqual({
+      ok: true,
+      status: "already_exists",
+      delivery: {
+        discord: "pending_batch",
+        whatsapp: "pending_batch"
       }
     });
-
-    expect(result.status).toBe("already_processed");
-    expect(result.delivery.discord).toBe("already_sent");
-    expect(result.delivery.whatsapp).toBe("disabled");
-    expect(discordSend).not.toHaveBeenCalled();
-    expect(repository.updateVagaStatus).not.toHaveBeenCalled();
+    expect(repository.createVaga).toHaveBeenCalledWith(job);
   });
 
-  it("returns partial status when an enabled channel fails", async () => {
+  it("ignores jobs that do not pass the sniper filter", async () => {
     const repository = createRepository();
+    const midJob = { ...job, seniority: "mid" };
 
-    const result = await deliverJobCreated(job, {
-      repository,
-      channels: {
-        discord: {
-          enabled: true,
-          client: { id: "discord-client" },
-          channelId: "discord-channel",
-          send: vi.fn(async () => false)
-        },
-        whatsapp: {
-          enabled: false,
-          groupId: undefined,
-          send: vi.fn()
-        }
-      }
-    });
+    const result = await deliverJobCreated(midJob, { repository });
 
-    expect(result).toMatchObject({
-      ok: false,
-      status: "partial",
+    expect(result).toEqual({
+      ok: true,
+      status: "ignored_by_filter",
       delivery: {
-        discord: "failed",
-        whatsapp: "disabled"
+        discord: "skipped",
+        whatsapp: "skipped"
       }
     });
-    expect(repository.updateVagaStatus).not.toHaveBeenCalled();
+    expect(repository.createVaga).not.toHaveBeenCalled();
+  });
+
+  it("returns persistence_failed when the repository fails to save/retrieve the job", async () => {
+    const repository = createRepository({ vaga: null });
+
+    const result = await deliverJobCreated(job, { repository });
+
+    expect(result).toEqual({
+      ok: false,
+      status: "persistence_failed",
+      delivery: {
+        discord: "skipped",
+        whatsapp: "skipped"
+      }
+    });
   });
 });

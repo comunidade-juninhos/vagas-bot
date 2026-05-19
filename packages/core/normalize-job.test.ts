@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { normalizeRemotarJob } from "../sources/remotar/remotar.parser.js";
+import { detectSeniority, detectExperienceYears } from "./normalize-job.js";
 
 const baseJob = {
   id: 123,
@@ -59,5 +60,19 @@ describe("normalizeRemotarJob", () => {
     });
 
     expect(job.seniority).toBe("mid");
+  });
+
+  it("correctly identifies years of experience requirements", () => {
+    expect(detectExperienceYears("Requisitos: 3+ anos de experiência")).toBe(3);
+    expect(detectExperienceYears("experiência mínima de 5 anos")).toBe(5);
+    expect(detectExperienceYears("mínimo de 4 anos de atuação no mercado")).toBe(4);
+    expect(detectExperienceYears("3 years of experience in JavaScript")).toBe(3);
+    expect(detectExperienceYears("empresa com 10 anos de mercado")).toBeNull();
+  });
+
+  it("overrides seniority based on high experience requirements in description", () => {
+    expect(detectSeniority("Desenvolvedor Júnior", "Exigência de 5 anos de experiência")).toBe("senior");
+    expect(detectSeniority("Developer Node.js", "Requisitos: 3+ anos de experiência")).toBe("mid");
+    expect(detectSeniority("Desenvolvedor Júnior", "Venha trabalhar conosco!")).toBe("junior");
   });
 });

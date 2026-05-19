@@ -31,7 +31,7 @@ describe("worker notification schedule", () => {
 
 describe("worker source schedule", () => {
   it("defaults to all configured scraper sources", () => {
-    expect(readWorkerSources({})).toEqual(["meupadrinho", "remotar", "gupy"]);
+    expect(readWorkerSources({})).toEqual(["meupadrinho", "remotar", "gupy", "ciee"]);
   });
 
   it("rotates one source per worker interval bucket", () => {
