@@ -5,9 +5,9 @@ export type NotificationWindowConfig = {
   timeZone: string;
 };
 
-export type WorkerSource = "meupadrinho" | "remotar" | "gupy";
+export type WorkerSource = "meupadrinho" | "remotar" | "gupy" | "ciee";
 
-const WORKER_SOURCES: WorkerSource[] = ["meupadrinho", "remotar", "gupy"];
+const WORKER_SOURCES: WorkerSource[] = ["meupadrinho", "remotar", "gupy", "ciee"];
 
 const clampHour = (value: number, fallback: number): number => {
   if (!Number.isFinite(value)) return fallback;

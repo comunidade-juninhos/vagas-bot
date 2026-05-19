@@ -40,13 +40,14 @@ const mapWorkMode = (value: string | null | undefined): WorkMode => {
   return detectWorkMode(normalized);
 };
 
-const mapSeniority = (value: string | null | undefined, title: string): Seniority => {
+const mapSeniority = (value: string | null | undefined, title: string, description?: string): Seniority => {
   const normalized = value?.toLowerCase() ?? "";
   if (normalized.includes("estágio") || normalized.includes("estagio")) return "intern";
   if (normalized.includes("júnior") || normalized.includes("junior")) return "junior";
   if (normalized.includes("pleno") || normalized.includes("mid")) return "mid";
   if (normalized.includes("sênior") || normalized.includes("senior")) return "senior";
-  return detectSeniority(title);
+  // fallback pra nossa deteccao inteligente caso a api do meupadrinho nao informe o nivel
+  return detectSeniority(title, description);
 };
 
 const joinSections = (job: MeuPadrinhoJob): string | undefined => {
@@ -81,7 +82,7 @@ export const normalizeMeuPadrinhoJob = (job: MeuPadrinhoJob): JobDTO => {
     company,
     location: job.local ?? undefined,
     workMode: mapWorkMode(job.forma_trabalho),
-    seniority: mapSeniority(job.nivel_vaga ?? job.nivel, title),
+    seniority: mapSeniority(job.nivel_vaga ?? job.nivel, title, description),
     url,
     description,
     stack,

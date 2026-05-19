@@ -86,11 +86,27 @@ export const stripHtml = (html: string): string => {
     .trim();
 };
 
-export const detectSeniority = (text: string): Seniority => {
-  if (/est[aá]gio|\bintern(ship)?\b|trainee/i.test(text)) return "intern";
-  if (/j[uú]nior|\bjr\b|junior/i.test(text)) return "junior";
-  if (/pleno|\bpl\b|\bmid\b/i.test(text)) return "mid";
-  if (/s[eê]nior|\bsr\b|senior|especialista|staff|lead|principal/i.test(text)) return "senior";
+export const detectSeniority = (titleText: string, descriptionText?: string): Seniority => {
+  if (/est[aá]gio|\bintern(ship)?\b|trainee/i.test(titleText)) return "intern";
+  if (/j[uú]nior|\bjr\b|junior/i.test(titleText)) return "junior";
+  if (/pleno|\bpl\b|\bmid\b/i.test(titleText)) return "mid";
+  if (/s[eê]nior|\bsr\b|senior|especialista|staff|lead|principal/i.test(titleText)) return "senior";
+
+  // se o titulo nao entregou o nivel, tentamos achar na descricao de forma segura
+  // usamos regex com contexto (ex: "nivel: junior", "cargo: estagio") pra evitar
+  // falsos positivos como "voce vai atuar com desenvolvedores seniores"
+  if (descriptionText) {
+    const contextRegex = /(?:n[ií]vel|senioridade|cargo|perfil|posi[cç][aã]o)[\s:-]*((?:est[aá]gio|\bintern\b|trainee|j[uú]nior|\bjr\b|pleno|\bpl\b|s[eê]nior|\bsr\b|especialista|staff|lead|principal))/i;
+    const match = descriptionText.match(contextRegex);
+    if (match && match[1]) {
+      const level = match[1];
+      if (/est[aá]gio|\bintern\b|trainee/i.test(level)) return "intern";
+      if (/j[uú]nior|\bjr\b/i.test(level)) return "junior";
+      if (/pleno|\bpl\b/i.test(level)) return "mid";
+      if (/s[eê]nior|\bsr\b|especialista|staff|lead|principal/i.test(level)) return "senior";
+    }
+  }
+
   return "unknown";
 };
 

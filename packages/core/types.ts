@@ -7,6 +7,7 @@ export type JobSource =
   | "greenhouse"
   | "lever"
   | "company-site"
+  | "ciee"
   | "unknown";
 
 export type Seniority = "intern" | "junior" | "mid" | "senior" | "specialist" | "lead" | "unknown";

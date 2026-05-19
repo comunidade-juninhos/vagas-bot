@@ -186,7 +186,7 @@ export const normalizeGupyJob = (job: GupyJob): JobDTO => {
     company: (job.careerPageName ?? "Empresa não informada").trim(),
     location,
     workMode,
-    seniority: detectSeniority(`${job.name ?? ""} ${skillTags.join(" ")}`),
+    seniority: detectSeniority(`${job.name ?? ""} ${skillTags.join(" ")}`, description),
     url,
     description: description || undefined,
     stack,

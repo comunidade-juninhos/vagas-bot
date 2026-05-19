@@ -165,7 +165,7 @@ export const normalizeRemotarJob = (job: RemotarJob): JobDTO => {
     company: (job.companyDisplayName ?? job.company?.name ?? "Empresa não informada").trim(),
     location,
     workMode: detectWorkMode(`${job.type ?? ""} ${tagText} ${description}`),
-    seniority: detectSeniority(`${job.title ?? ""} ${tagText}`),
+    seniority: detectSeniority(`${job.title ?? ""} ${tagText}`, description),
     url,
     description: description || undefined,
     stack,

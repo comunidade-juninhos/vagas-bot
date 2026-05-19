@@ -7,6 +7,7 @@ import type { JobDTO } from "../../../packages/core/types.js";
 import { fetchGupyJobs, isTechGupyJob, normalizeGupyJob } from "../../../packages/sources/gupy/index.js";
 import { fetchMeuPadrinhoJobs, normalizeMeuPadrinhoJob } from "../../../packages/sources/meupadrinho/index.js";
 import { fetchRemotarJobs, isTechRemotarJob, normalizeRemotarJob } from "../../../packages/sources/remotar/index.js";
+import { fetchCieeJobs, normalizeCieeJob } from "../../../packages/sources/ciee/index.js";
 import { isWithinNotificationWindow, readNotificationWindowConfig, readWorkerSources, selectSourceForCycle } from "./schedule.js";
 import { connectDatabase } from "#root/services/database.js";
 import VagaModel from "#root/models/vaga.js";
@@ -224,6 +225,8 @@ export const runCycle = async (): Promise<void> => {
     "node", "react"
   ];
   const gupyWorkplaceTypes: string[] | undefined = undefined;
+  // le as regras do .env para definir quais niveis de vaga vao pro discord/whats (ignora pleno/senior/unknown por padrao)
+  const allowedSeniorities = readCsv(process.env.ALLOWED_SENIORITIES, ["intern", "junior"]);
   const webhookLimit = Number(process.env.WEBHOOK_MAX_JOBS_PER_RUN || 10);
   const webhookDelayMs = Number(process.env.WEBHOOK_DELAY_MS || 1000);
   const notificationWindow = readNotificationWindowConfig();
@@ -319,6 +322,11 @@ export const runCycle = async (): Promise<void> => {
       })
     : [];
 
+  // busca os editais publicos do ciee se ele estiver nas fontes ativas do ciclo
+  const cieeSourceJobs = sources.includes("ciee")
+    ? await fetchCieeJobs()
+    : [];
+
   const remotarJobs = remotarSourceJobs
     .map((sourceJob) => sourceJob.raw)
     .filter(isTechRemotarJob)
@@ -330,8 +338,11 @@ export const runCycle = async (): Promise<void> => {
     .map(normalizeGupyJob);
 
   const meuPadrinhoJobs = meuPadrinhoSourceJobs.map((sourceJob) => normalizeMeuPadrinhoJob(sourceJob.raw));
+  const cieeJobs = cieeSourceJobs.map((sourceJob) => normalizeCieeJob(sourceJob.raw));
 
-  const fetchedJobs = dedupeJobs([...meuPadrinhoJobs, ...remotarJobs, ...gupyJobs]);
+  // filtra as vagas de todas as plataformas baseando-se no allowed_seniorities configurado
+  const fetchedJobs = dedupeJobs([...meuPadrinhoJobs, ...remotarJobs, ...gupyJobs, ...cieeJobs])
+    .filter((job) => allowedSeniorities.includes(job.seniority));
   
   for (const job of pendingWebhookJobs) {
     addJobKeys(existingKeys, job);
@@ -390,10 +401,10 @@ export const runCycle = async (): Promise<void> => {
     
   pendingWebhookJobs = pendingAfterRun;
 
-  const fetchedTotal = remotarSourceJobs.length + meuPadrinhoSourceJobs.length + gupySourceJobs.length;
+  const fetchedTotal = remotarSourceJobs.length + meuPadrinhoSourceJobs.length + gupySourceJobs.length + cieeSourceJobs.length;
 
   console.log(`\n📊 === Resultado do Ciclo ===`);
-  console.log(`   📥 Capturados: ${fetchedTotal} vagas (meupadrinho: ${meuPadrinhoSourceJobs.length}, remotar: ${remotarSourceJobs.length}, gupy: ${gupySourceJobs.length})`);
+  console.log(`   📥 Capturados: ${fetchedTotal} vagas (meupadrinho: ${meuPadrinhoSourceJobs.length}, remotar: ${remotarSourceJobs.length}, gupy: ${gupySourceJobs.length}, ciee: ${cieeSourceJobs.length})`);
   console.log(`   🆕 Novas: ${newJobs.length}`);
   if (process.env.WEBHOOK_URL) {
     console.log(`   📡 Webhook: ${webhookSent} enviados, ${webhookFailed} falhas, ${pendingAfterRun.length} pendentes (de ${jobsToNotify.length} tentados)`);
