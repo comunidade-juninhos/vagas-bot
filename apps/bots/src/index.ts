@@ -105,7 +105,7 @@ async function start() {
 
   await connectDatabase();
   if (config.whatsapp.enabled) {
-    await connectWhatsApp();
+    connectWhatsApp().catch(err => console.error("❌ [whatsapp] erro na conexão assíncrona:", err));
   } else {
     console.log("⏸️ [whatsapp] desativado por WHATSAPP_ENABLED=false");
   }
