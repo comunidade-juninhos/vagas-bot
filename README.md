@@ -1,3 +1,13 @@
+---
+title: Vagas Bot
+emoji: 🚀
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # 🚀 Vagas Bot - Juninhos
 
 Um bot e scraper criado com carinho para a comunidade **Juninhos**.  
