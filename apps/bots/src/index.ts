@@ -17,9 +17,13 @@ import { startScheduler } from "./bots/scheduler.js";
 
 const app = express();
 
+// Confia no proxy reverso (Render, Hugging Face, etc.) para obter o IP real
+app.set("trust proxy", 1);
+
 // Segurança Básica
 app.use(helmet({
-  contentSecurityPolicy: false // Necessário se for rodar HTML inline com CSS/Scripts
+  contentSecurityPolicy: false, // Necessário se for rodar HTML inline com CSS/Scripts
+  frameguard: false             // Permite que plataformas como Hugging Face exibam a UI em iframe
 }));
 app.disable("x-powered-by");
 
