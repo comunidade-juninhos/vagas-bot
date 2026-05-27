@@ -69,6 +69,7 @@ web_modules/
 
 # dotenv environment variable files
 .env
+apps/experimental/
 .env.*
 !.env.example
 
@@ -146,4 +147,5 @@ vite.config.ts.timestamp-*
 
 # Experimental
 apps/experimental/
+auth_info/
 

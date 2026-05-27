@@ -138,6 +138,35 @@ async function start() {
     res.status(400).send("❌ Discord não conectado.");
   });
 
+  // Rota experimental: Só Estágio e Junior para um grupo de teste
+  app.get("/experimental/force", async (_req: Request, res: Response) => {
+    const testGroupId = process.env.TEST_WHATSAPP_GROUP_ID;
+    if (!testGroupId) {
+        return res.status(400).send("❌ TEST_WHATSAPP_GROUP_ID não configurado no .env");
+    }
+
+    try {
+        const { forceExperimentalScrape } = await import("../../experimental/test-bot.js");
+        await forceExperimentalScrape(testGroupId, discordClient);
+        return res.send("🧪 Teste de Estágio/Junior disparado! Confira o WhatsApp e o Discord de teste.");
+    } catch (error) {
+        console.error(error);
+        res.status(500).send("❌ Erro ao disparar teste experimental.");
+    }
+  });
+
+  // Limpa a trava de instância para testes locais
+  app.get("/experimental/clear-lock", async (_req: Request, res: Response) => {
+    try {
+        const mongoose = await import('mongoose');
+        const Lock = mongoose.default.models.Lock || mongoose.default.model('Lock', new mongoose.default.Schema({ id: String }));
+        await Lock.deleteOne({ id: 'instance_lock' });
+        return res.send("✅ Trava de instância removida! Tente reiniciar o bot.");
+    } catch (error) {
+        res.status(500).send("❌ Erro ao remover trava.");
+    }
+  });
+
   app.get("/whatsapp/reset", async (_req: Request, res: Response) => {
     if (!config.whatsapp.enabled) {
       return res.status(409).send("WhatsApp desativado. Defina WHATSAPP_ENABLED=true para parear.");

@@ -251,6 +251,17 @@ export async function connectWhatsApp() {
             consecutiveSendFailures = 0;
             currentQRCode = null;
             console.log("✅ [WHATSAPP CONNECTED AND READY]");
+
+            // ESCUTADOR DE JID (Útil para o seu laboratório de testes)
+            sock.ev.on('messages.upsert', async (mS) => {
+                for (const m of mS.messages) {
+                    if (!m.message || m.key.fromMe) continue;
+                    if (m.key.remoteJid?.endsWith('@g.us')) {
+                        const text = m.message.conversation || m.message.extendedTextMessage?.text || "";
+                        console.log(`\n🔍 [JID FINDER] Grupo: ${m.key.remoteJid} | Mensagem: "${text}"\n`);
+                    }
+                }
+            });
         }
     });
 
