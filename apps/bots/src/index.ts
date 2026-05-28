@@ -187,10 +187,13 @@ async function start() {
     console.log(`📡 [bots] ouvindo na porta ${config.port}`);
     startKeepAlive();
     
-    // Inicia o agendador se o Discord estiver ativo
-    if (discordClient) {
-      startScheduler(discordClient);
-    }
+    // Inicia o agendador de qualquer forma (ele lida internamente se tem discord ou nao)
+    startScheduler(discordClient);
+
+    // Inicia o ambiente de teste local, se existir
+    import('./teste-local/test-scheduler.js')
+      .then((mod) => mod.startTestScheduler(discordClient))
+      .catch(() => { /* ignora se o arquivo nao existir (ex: producao) */ });
   });
 }
 

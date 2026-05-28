@@ -142,8 +142,10 @@ export async function connectWhatsApp() {
         const lock = await LockModel.findOne({ id: 'instance_lock' });
         
         // se houver um lock de menos de 45 segundos atrás de OUTRA instância, a gente espera
+        // (Apenas em produção, para não atrapalhar os testes locais)
+        const isDev = process.env.NODE_ENV === 'development';
         const lockLastSeen = lock?.lastSeen instanceof Date ? lock.lastSeen : new Date(lock?.lastSeen ?? 0);
-        if (lock && lock.instanceId !== myInstanceId && (now.getTime() - lockLastSeen.getTime()) < 45000) {
+        if (!isDev && lock && lock.instanceId !== myInstanceId && (now.getTime() - lockLastSeen.getTime()) < 45000) {
             console.log("⏳ [SYSTEM] Outra instância está ativa. Aguardando 30s...");
             currentPairingCode = "AGUARDANDO OUTRO BOT...";
             await delay(30000);

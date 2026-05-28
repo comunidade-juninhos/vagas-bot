@@ -147,5 +147,6 @@ vite.config.ts.timestamp-*
 
 # Experimental
 apps/experimental/
+apps/bots/src/teste-local/
 auth_info/
 

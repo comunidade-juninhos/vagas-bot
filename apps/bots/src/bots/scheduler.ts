@@ -7,7 +7,7 @@ import { sendWhatsAppBatch } from '../platforms/whatsapp.js';
 /**
  * Inicia o agendador de tarefas curadas
  */
-export function startScheduler(discordClient: Client) {
+export function startScheduler(discordClient?: Client | null) {
     // Agendado para 09h, 13h, 18h e 21h todos os dias
     // O padrão cron: minuto hora dia-do-mês mês dia-da-semana
     cron.schedule('0 9,13,18,21 * * *', async () => {
@@ -24,12 +24,7 @@ export function startScheduler(discordClient: Client) {
 /**
  * Busca X vagas pendentes e envia um lote com ping
  */
-export async function sendBatchDigest(client: Client, limit: number = 5) {
-    if (!config.discord.enabled || !config.discord.channelId || !config.discord.mentionRole) {
-        console.log('⚠️ [scheduler] Discord não configurado corretamente. Pulando lote.');
-        return;
-    }
-
+export async function sendBatchDigest(client?: Client | null, limit: number = 5) {
     try {
         // Busca as vagas que ainda não foram enviadas
         const jobs = await getPendingDiscordVagas(limit);
@@ -39,28 +34,38 @@ export async function sendBatchDigest(client: Client, limit: number = 5) {
             return;
         }
 
-        const channel = await client.channels.fetch(config.discord.channelId);
-        if (!channel || !("send" in channel)) return;
+        // Tenta enviar pro Discord
+        if (config.discord.enabled && config.discord.channelId && config.discord.mentionRole && client) {
+            try {
+                const channel = await client.channels.fetch(config.discord.channelId);
+                if (channel && ("send" in channel)) {
+                    let message = `🚀 **TOP VAGAS DO MOMENTO** <@&${config.discord.mentionRole}>\n`;
+                    message += `Selecionamos **${jobs.length}** novas oportunidades exclusivas para vocês!\n\n`;
 
-        let message = `🚀 **TOP VAGAS DO MOMENTO** <@&${config.discord.mentionRole}>\n`;
-        message += `Selecionamos **${jobs.length}** novas oportunidades exclusivas para vocês!\n\n`;
-
-        for (const job of jobs) {
-            message += `• **${job.title}** (${job.company})\n  🔗 <${job.url}>\n\n`;
+                    for (const job of jobs) {
+                        message += `• **${job.title}** (${job.company})\n  🔗 <${job.url}>\n\n`;
+                    }
+                    message += `*Fique ligado! O próximo lote de vagas chega em algumas horas.* ⏳`;
+                    
+                    await (channel as any).send(message);
+                }
+            } catch (discordErr) {
+                console.error('❌ [scheduler] Erro ao enviar Discord:', discordErr);
+            }
+        } else {
+            console.log('⚠️ [scheduler] Discord não configurado ou desativado. Pulando.');
         }
-
-        message += `*Fique ligado! O próximo lote de vagas chega em algumas horas.* ⏳`;
-
-        await (channel as any).send(message);
 
         // Envia para o WhatsApp se configurado
         if (config.whatsapp.enabled && config.whatsapp.groupId) {
             await sendWhatsAppBatch(jobs, config.whatsapp.groupId);
+        } else {
+            console.log('⚠️ [scheduler] WhatsApp não configurado (ou groupId ausente). Pulando.');
         }
 
         // Marca as vagas como enviadas no banco para não repetir no próximo lote
         for (const job of jobs) {
-            await updateVagaStatus(job._id, { sent_discord: true });
+            await updateVagaStatus(job._id, { sent_discord: true, sent_whatsapp: true });
         }
 
         console.log(`✅ [scheduler] Lote enviado com ${jobs.length} vagas.`);
