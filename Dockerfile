@@ -1,9 +1,9 @@
-RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git && \
-    rm -rf /var/lib/apt/lists/*FROM node:20-slim
+FROM node:20-slim
 
 # Instala o git para compatibilidade
-RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -11,15 +11,15 @@ WORKDIR /app
 COPY package*.json ./
 COPY tsconfig.json ./
 
-# Instala dependências de produção e desenvolvimento
+# Instala dependências (inclui devDependencies pois usamos tsx diretamente)
 RUN npm ci
 
 # Copia o resto do código
 COPY . .
 
-# Hugging Face Spaces usa a porta 7860 por padrão, mas aceita customização via env PORT
+# Hugging Face Spaces usa a porta 7860
 ENV PORT=7860
 EXPOSE 7860
 
-# Comando para rodar o bot e o scraper juntos
+# Roda o bot (Discord/WhatsApp) e o scraper juntos
 CMD ["npx", "concurrently", "-n", "BOTS,SCRAPER", "-c", "blue,green", "npm run start", "npm run worker"]
