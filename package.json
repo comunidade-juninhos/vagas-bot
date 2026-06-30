@@ -36,7 +36,6 @@
     "protobufjs": "^7.5.5"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "cheerio": "^1.2.0",
     "concurrently": "^9.2.1",
     "discord.js": "^14.26.3",
