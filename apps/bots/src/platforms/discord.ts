@@ -15,7 +15,11 @@ export async function connectDiscord() {
 
     // configura as permissões (intents) do bot
     const client = new Client({
-        intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages]
+        intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages],
+        rest: {
+            timeout: 60000,
+            retries: 5
+        }
     });
 
     // avisa quando o bot estiver pronto
@@ -23,9 +27,27 @@ export async function connectDiscord() {
         console.log(`✅ [discord] bot online como: ${client.user?.tag ?? "desconhecido"}`);
     });
 
-    await client.login(process.env.DISCORD_TOKEN);
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    while (attempts < maxAttempts) {
+        try {
+            attempts++;
+            console.log(`🔌 [discord] Tentando conectar (tentativa ${attempts}/${maxAttempts})...`);
+            await client.login(process.env.DISCORD_TOKEN);
+            return client;
+        } catch (err) {
+            console.error(`❌ [discord] erro de login (tentativa ${attempts}):`, err instanceof Error ? err.message : String(err));
+            if (attempts >= maxAttempts) {
+                console.error("❌ [discord] Número máximo de tentativas de conexão atingido. Continuando sem Discord.");
+                return null;
+            }
+            console.log("⏳ [discord] Aguardando 15s antes de tentar novamente...");
+            await new Promise(resolve => setTimeout(resolve, 15000));
+        }
+    }
 
-    return client;
+    return null;
 }
 
 export async function buildDiscordJobPayload(job: JobDTO) {
