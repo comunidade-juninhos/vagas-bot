@@ -27,6 +27,27 @@ export async function connectDiscord() {
         console.log(`✅ [discord] bot online como: ${client.user?.tag ?? "desconhecido"}`);
     });
 
+    // Diagnósticos de rede antes de conectar
+    try {
+        console.log("🔍 [diagnostico-rede] Testando conectividade com serviços externos...");
+        const services = [
+            { name: "Google", url: "https://www.google.com" },
+            { name: "GitHub API", url: "https://api.github.com" },
+            { name: "Discord API Gateway", url: "https://discord.com/api/v10/gateway" }
+        ];
+        for (const s of services) {
+            try {
+                const start = Date.now();
+                const res = await fetch(s.url, { signal: AbortSignal.timeout(5000) });
+                console.log(`📡 [diagnostico-rede] ${s.name} respondeu com status ${res.status} em ${Date.now() - start}ms`);
+            } catch (err) {
+                console.error(`❌ [diagnostico-rede] Falha ao conectar com ${s.name}:`, err instanceof Error ? err.message : String(err));
+            }
+        }
+    } catch (e) {
+        console.error("❌ [diagnostico-rede] Erro ao rodar diagnosticos:", e);
+    }
+
     let attempts = 0;
     const maxAttempts = 10;
     
